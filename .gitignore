@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Project-specific
+*.db
+*.sqlite
+*.sqlite3
+backend/data/
+notebooks/.ipynb_checkpoints/
+notebooks/outputs/
+
+# Models (never commit downloaded weights)
+*.gguf
+*.bin
+*.safetensors
+models/
+
+docs/
