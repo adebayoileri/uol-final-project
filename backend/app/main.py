@@ -5,6 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import create_tables
 from app.routes.courses import router as courses_router
+from app.routes.lessons import router as lessons_router
+from app.routes.questions import router as questions_router
+from app.routes.review import router as review_router
+from app.routes.speech import router as speech_router
 
 
 @asynccontextmanager
@@ -30,6 +34,10 @@ app.add_middleware(
 )
 
 app.include_router(courses_router)
+app.include_router(lessons_router)
+app.include_router(questions_router)
+app.include_router(review_router)
+app.include_router(speech_router)
 
 
 @app.get("/")
