@@ -9,9 +9,9 @@ A local-first AI course creation system using multiple pre-trained models. Final
 - **Database**: SQLite (added in Phase 2)
 - **Models** (all local, added in later phases):
   - Llama 3.1 8B via Ollama (text generation)
-  - Whisper via mlx-whisper (speech-to-text)
+  - Whisper via whisper.cpp's `whisper-cli` (speech-to-text)
   - sentence-transformers all-MiniLM-L6-v2 (embeddings)
-  - Piper TTS (text-to-speech)
+  - Piper TTS via the `piper-tts` pip package (text-to-speech)
 
 
 Required:
@@ -21,7 +21,8 @@ Required:
 3. **Python 3.11+** — `brew install python@3.11`
 4. **uv** — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 5. **Ollama** — download from [ollama.com](https://ollama.com), then `ollama pull llama3.1:8b`
-6. **ffmpeg** (Whisper dependency) — `brew install ffmpeg`
+6. **whisper-cli** — `brew install whisper-cpp`
+7. **ffmpeg** — `brew install ffmpeg` (used to prep audio test fixtures)
 
 ## Project setup
 
@@ -38,6 +39,31 @@ pnpm dev
 ```
 
 Backend runs at http://localhost:8000, frontend at http://localhost:5173.
+
+## Environment variables
+
+Copy `backend/.env.example` to `backend/.env` and adjust as needed. All have working defaults if unset:
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `WHISPER_MODEL_PATH` | `backend/models/ggml-base.en.bin` | Path to the whisper.cpp GGML model used by `/transcribe` and `/pronunciation-check`. |
+| `PIPER_VOICE_EN` | `en_US-lessac-medium` | Piper voice name used for `/tts` when `lang="en"`. |
+| `PIPER_VOICE_ES` | `es_ES-davefx-medium` | Piper voice name used for `/tts` when `lang="es"`. |
+
+One-time setup to download the model and voices referenced above:
+
+```bash
+cd backend
+
+# Whisper model
+mkdir -p models
+curl -L -o models/ggml-base.en.bin \
+  https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
+
+# Piper voices
+.venv/bin/python -m piper.download_voices en_US-lessac-medium --data-dir voices
+.venv/bin/python -m piper.download_voices es_ES-davefx-medium --data-dir voices
+```
 
 ## Layout
 

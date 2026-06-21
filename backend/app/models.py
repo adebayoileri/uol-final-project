@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
+from sqlalchemy import DateTime, Float, ForeignKey, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,6 +54,9 @@ class Lesson(Base):
     objectives: Mapped[list["Objective"]] = relationship(
         "Objective", back_populates="lesson", cascade="all, delete-orphan", order_by="Objective.order_index"
     )
+    questions: Mapped[list["Question"]] = relationship(
+        "Question", back_populates="lesson", cascade="all, delete-orphan", order_by="Question.order_index"
+    )
 
 
 class Objective(Base):
@@ -65,3 +68,53 @@ class Objective(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
 
     lesson: Mapped["Lesson"] = relationship("Lesson", back_populates="objectives")
+
+
+class Question(Base):
+    __tablename__ = "questions"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    lesson_id: Mapped[str] = mapped_column(Text, ForeignKey("lessons.id"), nullable=False)
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    reference_answer: Mapped[str] = mapped_column(Text, nullable=False)
+    reference_embedding: Mapped[str] = mapped_column(Text, nullable=False)  # JSON float list
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+    lesson: Mapped["Lesson"] = relationship("Lesson", back_populates="questions")
+    card: Mapped["Card | None"] = relationship("Card", back_populates="question", uselist=False)
+
+
+class Card(Base):
+    __tablename__ = "cards"
+    __table_args__ = (UniqueConstraint("question_id", name="uq_cards_question_id"),)
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    question_id: Mapped[str] = mapped_column(Text, ForeignKey("questions.id"), nullable=False)
+    state: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+    due: Mapped[str] = mapped_column(Text, nullable=False)           # ISO 8601 UTC
+    last_review: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+
+    question: Mapped["Question"] = relationship("Question", back_populates="card")
+    reviews: Mapped[list["Review"]] = relationship(
+        "Review", back_populates="card", cascade="all, delete-orphan"
+    )
+
+
+class Review(Base):
+    __tablename__ = "reviews"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    card_id: Mapped[str] = mapped_column(Text, ForeignKey("cards.id"), nullable=False)
+    rating: Mapped[int] = mapped_column(Integer, nullable=False)
+    reviewed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    stability: Mapped[float | None] = mapped_column(Float, nullable=True)
+    difficulty: Mapped[float | None] = mapped_column(Float, nullable=True)
+
+    card: Mapped["Card"] = relationship("Card", back_populates="reviews")

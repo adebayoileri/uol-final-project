@@ -9,6 +9,11 @@ dependencies = [
     "pydantic>=2.9",
     "sqlalchemy>=2.0",
     "httpx>=0.27",
+    "sentence-transformers>=3.0,<4.0",
+    "numpy>=1.24,<2",
+    "fsrs>=6.3,<7",
+    "python-multipart>=0.0.12",
+    "piper-tts>=1.4,<2",
 ]
 
 [dependency-groups]
