@@ -42,6 +42,7 @@ def next_card(db: Session = Depends(get_db)):
         id=card.id,
         question_id=card.question_id,
         question_text=card.question.text,
+        question_reference_answer=card.question.reference_answer,
         state=card.state,
         stability=card.stability,
         difficulty=card.difficulty,

@@ -143,6 +143,7 @@ def test_next_card_returns_200_with_due_card(client, db_session):
     assert data["id"] == card.id
     assert data["question_id"] == card.question_id
     assert data["question_text"] == "What is a variable?"
+    assert data["question_reference_answer"] == "A variable is a named storage location in memory."
     assert data["state"] == 1
     assert "due" in data
 
