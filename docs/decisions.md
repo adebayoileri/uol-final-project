@@ -196,3 +196,17 @@ main: processing 'samples/jfk.wav' (176000 samples, 11.0 sec), 4 threads, 1 proc
 **Reason**: `synthesize_speech()` shells out to `<venv-python> -m piper -m <voice> --data-dir backend/voices -f <tmp.wav> -- "<text>"`, matching the same subprocess-boundary pattern used for `whisper-cli` and for Ollama. Voice names were confirmed against the `rhasspy/piper-voices` HuggingFace repo (the `voices.json` index was truncated mid-fetch, so the Spanish entry was confirmed via the HF API directory-listing endpoint instead): `en_US-lessac-medium` (English default) and `es_ES-davefx-medium` (Spanish default, only `medium`-quality variant available for the `davefx` speaker). Verified manually: both English and Spanish requests produced valid RIFF/WAVE PCM 16-bit mono 22050Hz files, confirmed audible via `afplay` and frame-count-checked via Python's `wave` module.
 
 **Status**: Active.
+
+----
+
+## 2026-06-21 — Closed two API gaps before building the frontend: `GET /courses/{id}` and auto-created FSRS cards
+
+**Context**: Starting the first real frontend flow (goal input → course view → review session) surfaced two gaps that weren't deliberate design choices, just things nobody had needed yet: `POST /courses` was write-only (no way to re-fetch a course), and FSRS `Card` rows were only ever created by manually running `backend/scripts/backfill_cards.py` — so newly generated questions were invisible to the review session until someone remembered to re-run that script.
+
+**Alternatives considered**:
+- Leave course-fetching to the frontend (pass the just-created `CourseResponse` through router state, fall back to `sessionStorage`) — rejected. Works for the happy path but breaks on a fresh page load/shared link, and is strictly worse than just adding the missing `GET` endpoint that every other resource already has.
+- Leave card-creation manual and have the frontend show a "run this script" hint — rejected. Pushes a real backend gap onto the user as a manual step in the demo flow; not acceptable for something that should just work end-to-end.
+
+**Reason**: `GET /courses/{course_id}` was added to `app/routes/courses.py`, reusing `CourseResponse` and the same `selectinload` eager-loading pattern already used in `app/routes/lessons.py`. `generate_lesson_questions` (`app/routes/lessons.py`) now creates one `Card` per generated `Question` inline — same construction `backfill_cards.py` already used (`FSRSCard()` default-constructed, fields copied across) — so a question is reviewable the moment it's generated. `Card.question_id`'s existing `UniqueConstraint` makes this safe against double-creation. `backfill_cards.py` is kept as-is for any pre-existing questions from before this change.
+
+**Status**: Active.
