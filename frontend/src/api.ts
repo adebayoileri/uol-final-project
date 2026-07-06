@@ -1,0 +1,132 @@
+const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+
+export interface CourseRequest {
+  goal: string;
+  duration: "short_term" | "long_term";
+  category: string;
+}
+
+export interface ObjectiveResponse {
+  id: string;
+  order_index: number;
+  description: string;
+}
+
+export interface LessonResponse {
+  id: string;
+  order_index: number;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  objectives: ObjectiveResponse[];
+}
+
+export interface ModuleResponse {
+  id: string;
+  order_index: number;
+  title: string;
+  description: string;
+  lessons: LessonResponse[];
+}
+
+export interface CourseResponse {
+  id: string;
+  goal: string;
+  duration: string;
+  category: string;
+  title: string;
+  description: string;
+  created_at: string;
+  modules: ModuleResponse[];
+}
+
+export interface QuestionResponse {
+  id: string;
+  order_index: number;
+  text: string;
+  reference_answer: string;
+  created_at: string;
+}
+
+export interface CardResponse {
+  id: string;
+  question_id: string;
+  question_text: string;
+  question_reference_answer: string;
+  state: number;
+  stability: number | null;
+  difficulty: number | null;
+  due: string;
+}
+
+export interface AnswerResponse {
+  verdict: "correct" | "incorrect";
+  score: number;
+  signal_used: "embedding" | "embedding+llm";
+}
+
+export interface GradeResponse {
+  card_id: string;
+  rating: number;
+  stability: number | null;
+  difficulty: number | null;
+  due: string;
+  state: number;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    headers: { "Content-Type": "application/json" },
+    ...init,
+  });
+
+  if (res.status === 204) {
+    return null as T;
+  }
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `Request failed with status ${res.status}`);
+  }
+
+  return res.json() as Promise<T>;
+}
+
+export function createCourse(body: CourseRequest): Promise<CourseResponse> {
+  return request<CourseResponse>("/courses", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export function getCourse(courseId: string): Promise<CourseResponse> {
+  return request<CourseResponse>(`/courses/${courseId}`);
+}
+
+export function generateQuestions(lessonId: string): Promise<QuestionResponse[]> {
+  return request<QuestionResponse[]>(`/lessons/${lessonId}/questions/generate`, {
+    method: "POST",
+  });
+}
+
+export function getQuestions(lessonId: string): Promise<QuestionResponse[]> {
+  return request<QuestionResponse[]>(`/lessons/${lessonId}/questions`);
+}
+
+export function getNextCard(): Promise<CardResponse | null> {
+  return request<CardResponse | null>("/review/next");
+}
+
+export function answerQuestion(questionId: string, answer: string): Promise<AnswerResponse> {
+  return request<AnswerResponse>(`/questions/${questionId}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+}
+
+export function gradeCard(cardId: string, rating: number): Promise<GradeResponse> {
+  return request<GradeResponse>("/review/grade", {
+    method: "POST",
+    body: JSON.stringify({ card_id: cardId, rating }),
+  });
+}
