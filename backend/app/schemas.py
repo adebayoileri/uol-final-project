@@ -76,6 +76,7 @@ class CardResponse(BaseModel):
     id: str
     question_id: str
     question_text: str
+    question_reference_answer: str
     state: int
     stability: float | None
     difficulty: float | None

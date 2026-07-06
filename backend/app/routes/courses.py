@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from agents.course_agent import generate_course
 from app.database import get_db
@@ -66,4 +66,21 @@ def create_course(body: CourseRequest, db: Session = Depends(get_db)) -> CourseR
     db.commit()
     db.refresh(course)
 
+    return CourseResponse.model_validate(course)
+
+
+@router.get("/{course_id}", response_model=CourseResponse)
+def get_course(course_id: str, db: Session = Depends(get_db)) -> CourseResponse:
+    course = (
+        db.query(Course)
+        .options(
+            selectinload(Course.modules)
+            .selectinload(Module.lessons)
+            .selectinload(Lesson.objectives)
+        )
+        .filter(Course.id == course_id)
+        .first()
+    )
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
     return CourseResponse.model_validate(course)

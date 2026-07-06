@@ -164,10 +164,6 @@ def test_long_term_course_returns_201(client):
     assert len(response.json()["modules"]) == 9
 
 
-# ---------------------------------------------------------------------------
-# DB persistence
-# ---------------------------------------------------------------------------
-
 def test_course_row_persisted(client, test_engine):
     with patch(PATCH_TARGET, return_value=MOCK_RESPONSE):
         client.post("/courses", json=SHORT_TERM_BODY)
@@ -237,10 +233,6 @@ def test_missing_duration_returns_422(client):
     assert response.status_code == 422
 
 
-# ---------------------------------------------------------------------------
-# Error handling — 503 when Ollama is unavailable
-# ---------------------------------------------------------------------------
-
 def test_ollama_unreachable_returns_503(client):
     with patch(PATCH_TARGET, side_effect=RuntimeError("Cannot reach Ollama")):
         response = client.post("/courses", json=SHORT_TERM_BODY)
@@ -256,3 +248,27 @@ def test_no_db_write_on_503(client, test_engine):
     Session = sessionmaker(bind=test_engine)
     with Session() as session:
         assert session.query(Course).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# GET /courses/{course_id}
+# ---------------------------------------------------------------------------
+
+def test_get_course_returns_200_with_full_structure(client):
+    with patch(PATCH_TARGET, return_value=MOCK_RESPONSE):
+        created = client.post("/courses", json=SHORT_TERM_BODY).json()
+
+    response = client.get(f"/courses/{created['id']}")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["id"] == created["id"]
+    assert data["title"] == "Test Course"
+    assert len(data["modules"]) == 2
+    assert len(data["modules"][0]["lessons"]) == 3
+    assert len(data["modules"][0]["lessons"][0]["objectives"]) == 2
+
+
+def test_get_course_not_found_returns_404(client):
+    response = client.get("/courses/nonexistent-id")
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Course not found."

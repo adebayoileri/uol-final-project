@@ -2,10 +2,11 @@ import json
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from fsrs import Card as FSRSCard
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Lesson, Question
+from app.models import Card as DBCard, Lesson, Question
 from app.schemas import QuestionResponse
 from app.services.answer_evaluator import embed
 from app.services.question_generator import generate_questions
@@ -54,6 +55,17 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
     db.commit()
     for q in questions:
         db.refresh(q)
+        fsrs_card = FSRSCard()
+        db.add(DBCard(
+            question_id=q.id,
+            state=int(fsrs_card.state),
+            step=fsrs_card.step,
+            stability=fsrs_card.stability,
+            difficulty=fsrs_card.difficulty,
+            due=fsrs_card.due.isoformat(),
+            last_review=fsrs_card.last_review.isoformat() if fsrs_card.last_review else None,
+        ))
+    db.commit()
 
     return [QuestionResponse.model_validate(q) for q in questions]
 

@@ -17,7 +17,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import Base, get_db
 from app.main import app
-from app.models import Course, Lesson, Module, Objective, Question  # noqa: F401
+from app.models import Card, Course, Lesson, Module, Objective, Question  # noqa: F401
 from app.services.answer_evaluator import (
     CORRECT_THRESHOLD,
     INCORRECT_THRESHOLD,
@@ -198,6 +198,19 @@ def test_generate_questions_persisted(client, lesson_id, test_engine):
     Session = sessionmaker(bind=test_engine)
     with Session() as db:
         assert db.query(Question).count() == 3
+
+
+def test_generate_questions_creates_cards(client, lesson_id, test_engine):
+    with patch(GEN_PATCH, return_value=MOCK_QUESTIONS_DATA), \
+         patch(EMBED_PATCH, return_value=FAKE_EMBEDDING):
+        data = client.post(f"/lessons/{lesson_id}/questions/generate").json()
+
+    Session = sessionmaker(bind=test_engine)
+    with Session() as db:
+        assert db.query(Card).count() == 3
+        question_ids = {q["id"] for q in data}
+        card_question_ids = {c.question_id for c in db.query(Card).all()}
+    assert card_question_ids == question_ids
 
 
 def test_generate_questions_lesson_not_found(client):
