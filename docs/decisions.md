@@ -1,5 +1,19 @@
 # Decisions Log
 
+## 2026-07-18 — Word-level diff instead of phoneme-level scoring for pronunciation feedback
+
+**Context**: `/pronunciation-check` needed feedback beyond a binary pass/fail — the user should see exactly which words they got right, missed, or mispronounced. Two approaches were on the table: (1) phoneme-level alignment (Levenshtein on IPA strings via espeak-ng or a G2P model), (2) word-level diff on Whisper's existing transcript.
+
+**Alternatives considered**:
+- Phoneme-level alignment — rejected. Requires a G2P model (espeak-ng or CMU Pronouncing Dict), adds a hard OS-level dependency, and produces sparse/noisy results for Spanish where English-trained dicts have incomplete coverage. Computationally heavier for marginal user benefit at this stage.
+- Edit-distance on raw characters — rejected. Conflates spelling artefacts of the ASR output with pronunciation errors; not meaningful for evaluating spoken production.
+
+**Reason**: Whisper already transcribes the spoken words. `difflib.SequenceMatcher` on tokenised word lists is zero-dependency, deterministic, and maps directly to 4 user-visible categories: `match` (green), `missing` (red), `substituted` (yellow), `extra` (grey). Word-level accuracy (`matched_words / expected_words`) is immediately interpretable without phoneme notation. Validated against the acceptance-criteria case: "hola me llamo juan" → 4/4 match → 100% accuracy; one missing word → correctly flagged as `missing`.
+
+**Status**: Active.
+
+---
+
 Every non-trivial choice made on this project, with date, alternatives considered, and reason. This file is gold for the report's Design chapter.
 
 **Format**: newest entry on top. Each entry has Date, Decision, Context, Alternatives, Reason, and Status (Active / Superseded by [link]).

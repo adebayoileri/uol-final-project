@@ -42,7 +42,9 @@ _System architecture, model choices with justification, data flow, schema design
 
 _What did you actually build? Key technical challenges and how you solved them._
 
-- 
+- 2026-07-18 Sub-phase 3A — Spanish pronunciation loop. Built the end-to-end pronunciation drill: browser MediaRecorder API captures audio (with `audio/webm` → `audio/mp4` fallback for Safari), uploads to `/pronunciation-check` via FormData, Whisper transcribes, `difflib.SequenceMatcher` produces word-level diff (match/missing/extra/substituted), and the frontend renders colour-coded per-word feedback (green/red/yellow/grey) with an accuracy badge. Key discovery: the entire backend was already implemented (`word_diff.py`, `speech.py`, schemas) — Sub-phase 3A only required writing the frontend page ([PronunciationDrill.tsx](../frontend/src/pages/PronunciationDrill.tsx)), wiring the `checkPronunciation` API call in `api.ts`, adding the route/nav link, and extending the test suite with Spanish-specific fixtures. Permission denial (mic blocked on Safari or Chrome) is caught and shown as a descriptive error message rather than crashing. 18 tests pass.
+
+
 
 ## 5. Evaluation
 
@@ -64,3 +66,6 @@ _What worked, what didn't, what would you do differently, future work._
 _Catch-all for things that don't fit a chapter yet. Triage these into chapters periodically._
 
 - 
+
+
+- Idea to depict the forgetting curve for an information or course content. - check the paper to see how it's calculated and how to visualize it. - 2026-05-04  

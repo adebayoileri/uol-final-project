@@ -2,6 +2,7 @@ import { Link, Route, Routes } from 'react-router-dom'
 import GoalInputPage from './pages/GoalInputPage'
 import CourseViewPage from './pages/CourseViewPage'
 import ReviewSessionPage from './pages/ReviewSessionPage'
+import PronunciationDrill from './pages/PronunciationDrill'
 
 function App() {
   return (
@@ -17,6 +18,9 @@ function App() {
           <Link to="/review" className="text-sm text-gray-400 hover:text-white">
             Review
           </Link>
+          <Link to="/pronunciation" className="text-sm text-gray-400 hover:text-white">
+            Pronunciation
+          </Link>
         </div>
       </nav>
       <main className="mx-auto max-w-3xl px-6 py-8">
@@ -24,6 +28,7 @@ function App() {
           <Route path="/" element={<GoalInputPage />} />
           <Route path="/courses/:courseId" element={<CourseViewPage />} />
           <Route path="/review" element={<ReviewSessionPage />} />
+          <Route path="/pronunciation" element={<PronunciationDrill />} />
         </Routes>
       </main>
     </div>
