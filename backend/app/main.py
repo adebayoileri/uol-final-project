@@ -8,6 +8,7 @@ from app.routes.courses import router as courses_router
 from app.routes.lessons import router as lessons_router
 from app.routes.questions import router as questions_router
 from app.routes.review import router as review_router
+from app.routes.search import router as search_router
 from app.routes.speech import router as speech_router
 
 
@@ -37,6 +38,7 @@ app.include_router(courses_router)
 app.include_router(lessons_router)
 app.include_router(questions_router)
 app.include_router(review_router)
+app.include_router(search_router)
 app.include_router(speech_router)
 
 

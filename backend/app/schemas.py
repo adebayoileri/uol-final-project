@@ -123,3 +123,12 @@ class PronunciationCheckResponse(BaseModel):
     transcribed_text: str
     diff: list[WordDiffItem]
     accuracy: float
+
+
+class SearchResultItem(BaseModel):
+    content_type: str
+    content_id: str
+    content_text: str
+    course_id: str
+    lesson_id: str | None
+    score: float

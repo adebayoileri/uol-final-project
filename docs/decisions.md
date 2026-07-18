@@ -1,5 +1,22 @@
 # Decisions Log
 
+## 2026-07-18 — Semantic search: SQLite + numpy over FAISS / vector DB
+
+**Context**: Sub-phase 3C required a search index over lesson and question content. Options were a dedicated vector database (FAISS, Chroma, Qdrant) or a simpler SQLite + numpy approach.
+
+**Alternatives considered**:
+- FAISS — rejected. Adds a C++ native dependency; overkill for a corpus that will realistically reach ~500 items at most. Latency difference vs numpy at 500 × 384 floats is negligible (<5ms either way).
+- Chroma / Qdrant — rejected. Both run as external server processes, adding operational complexity for a single-user local prototype.
+- SQLite FTS5 (full-text search) — rejected. FTS5 is keyword-based; it would miss paraphrases (e.g. "iterate" not found by a query for "loop"), defeating the semantic matching goal.
+
+**Reason**: Numpy cosine similarity over `N × 384` float32 vectors loaded from SQLite is measured at <5ms for N=500. Vectors are stored as BLOB (1536 bytes = 384 × float32), which is 2.5× smaller than JSON and requires no parsing. The `content_embeddings` table scopes results by `course_id` so the search panel shows only the open course's content. No new runtime dependency added — numpy is already a transitive dependency of sentence-transformers.
+
+**Indexed content**: Lessons (title + description) and questions (question stem). Modules and courses are excluded — they are too coarse to be useful retrieval targets; the lesson is the atomic learning unit.
+
+**Status**: Active.
+
+---
+
 ## 2026-07-18 — LLM judge instead of embeddings for Python fill-blank answer evaluation
 
 **Context**: `POST /questions/{id}/answer` needs to evaluate Python code fill-in-the-blank answers. The existing answer evaluation path uses cosine similarity on sentence-transformer embeddings (all-MiniLM-L6-v2, 384-dim) with an LLM fallback for borderline scores. This works well for prose answers but is unreliable for short code.
