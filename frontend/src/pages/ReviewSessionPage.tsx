@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { answerQuestion, gradeCard, getNextCard, type AnswerResponse, type CardResponse } from '../api'
+import CodeBlock from '../components/CodeBlock'
 
 const RATINGS: { label: string; value: number }[] = [
   { label: 'Again', value: 1 },
@@ -110,10 +111,26 @@ function ReviewSessionPage() {
       {/* Question */}
       <div className="mt-6 rounded-xl border border-[#2a2a3a] bg-[#111118] p-6">
         <p className="text-lg text-white">{card.question_text}</p>
+        {card.question_type === 'fill_blank' && card.code_snippet && (
+          <div className="mt-3">
+            <CodeBlock code={card.code_snippet} />
+          </div>
+        )}
       </div>
 
       {phase === 'answering' && (
         <div className="mt-4 space-y-3">
+          {card.question_type === 'fill_blank' ? (
+            <input
+              autoFocus
+              type="text"
+              value={userAnswer}
+              onChange={(e) => setUserAnswer(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleCheckAnswer() }}
+              placeholder="Type the missing line…"
+              className="block w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 font-mono text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
+            />
+          ) : (
           <textarea
             ref={textareaRef}
             value={userAnswer}
@@ -125,6 +142,7 @@ function ReviewSessionPage() {
             placeholder="Type your answer…"
             className="block w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
           />
+          )}
           <button
             type="button"
             disabled={checking || !userAnswer.trim()}
@@ -147,9 +165,14 @@ function ReviewSessionPage() {
             }`}
           >
             {feedback.verdict === 'correct' ? 'Correct' : 'Incorrect'}
-            <span className="ml-2 font-normal opacity-75">
-              (similarity {Math.round(feedback.score * 100)}%)
-            </span>
+            {feedback.signal_used !== 'llm' && (
+              <span className="ml-2 font-normal opacity-75">
+                (similarity {Math.round(feedback.score * 100)}%)
+              </span>
+            )}
+            {feedback.explanation && (
+              <span className="ml-2 font-normal opacity-75">— {feedback.explanation}</span>
+            )}
           </div>
 
           {/* Your answer */}

@@ -59,6 +59,8 @@ class QuestionResponse(BaseModel):
     order_index: int
     text: str
     reference_answer: str
+    question_type: str
+    code_snippet: str | None
     created_at: datetime
 
 
@@ -69,7 +71,8 @@ class AnswerRequest(BaseModel):
 class AnswerResponse(BaseModel):
     verdict: Literal["correct", "incorrect"]
     score: float
-    signal_used: Literal["embedding", "embedding+llm"]
+    signal_used: Literal["embedding", "embedding+llm", "llm"]
+    explanation: str | None = None
 
 
 class CardResponse(BaseModel):
@@ -77,6 +80,8 @@ class CardResponse(BaseModel):
     question_id: str
     question_text: str
     question_reference_answer: str
+    question_type: str
+    code_snippet: str | None
     state: int
     stability: float | None
     difficulty: float | None

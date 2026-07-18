@@ -99,3 +99,49 @@ def evaluate_answer(
         "score": score,
         "signal_used": "embedding+llm",
     }
+
+
+def _llm_judge_code(
+    question_text: str,
+    code_snippet: str,
+    user_answer: str,
+    reference_answer: str,
+) -> dict[str, Any]:
+    """Ask the LLM if the student's code answer is semantically equivalent to the reference."""
+    prompt = (
+        "You are evaluating a Python fill-in-the-blank exercise.\n\n"
+        f"Code context (# BLANK marks the missing line):\n{code_snippet}\n\n"
+        f"Expected answer: {reference_answer}\n"
+        f"Student answer: {user_answer}\n\n"
+        "Are these semantically equivalent Python expressions? "
+        "For example 'x += 1' and 'x = x + 1' are equivalent. "
+        'Reply ONLY with JSON: {"correct": true, "explanation": "..."} '
+        'or {"correct": false, "explanation": "..."}'
+    )
+    payload = {"model": OLLAMA_MODEL, "prompt": prompt, "format": "json", "stream": False}
+    try:
+        with httpx.Client(timeout=OLLAMA_TIMEOUT) as client:
+            resp = client.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
+            resp.raise_for_status()
+        result = json.loads(resp.json()["response"])
+        correct = bool(result.get("correct", True))
+        explanation = str(result.get("explanation", ""))
+        return {
+            "verdict": "correct" if correct else "incorrect",
+            "score": 1.0 if correct else 0.0,
+            "signal_used": "llm",
+            "explanation": explanation,
+        }
+    except Exception as exc:
+        logger.warning("LLM code judge failed, defaulting correct: %s", exc)
+        return {"verdict": "correct", "score": 1.0, "signal_used": "llm", "explanation": ""}
+
+
+def evaluate_code_answer(
+    question_text: str,
+    code_snippet: str,
+    user_answer: str,
+    reference_answer: str,
+) -> dict[str, Any]:
+    """Evaluate a fill-blank code answer via LLM judge (embeddings unreliable for short code)."""
+    return _llm_judge_code(question_text, code_snippet, user_answer, reference_answer)

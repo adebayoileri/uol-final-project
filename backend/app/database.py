@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 _DEFAULT_DB_PATH = Path(__file__).parent.parent / "course_agent.db"
@@ -19,8 +19,22 @@ class Base(DeclarativeBase):
     pass
 
 
+def _run_migrations() -> None:
+    with engine.connect() as conn:
+        for stmt in [
+            "ALTER TABLE questions ADD COLUMN question_type TEXT NOT NULL DEFAULT 'open'",
+            "ALTER TABLE questions ADD COLUMN code_snippet TEXT",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass  # column already exists
+
+
 def create_tables() -> None:
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
 
 
 def get_db():
