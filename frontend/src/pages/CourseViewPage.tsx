@@ -8,6 +8,7 @@ import {
   type QuestionResponse,
 } from '../api'
 import CodeBlock from '../components/CodeBlock'
+import SearchPanel from '../components/SearchPanel'
 
 function CourseViewPage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -73,6 +74,8 @@ function CourseViewPage() {
       <Link to="/review" className="mt-4 inline-block text-sm font-medium text-violet-400 hover:text-violet-300">
         Go to review session
       </Link>
+
+      <SearchPanel courseId={course.id} />
 
       {lessonError && <p className="mt-4 text-sm text-red-400">{lessonError}</p>}
 

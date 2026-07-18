@@ -9,6 +9,7 @@ from app.database import get_db
 from app.models import Card as DBCard, Lesson, Module, Question
 from app.schemas import QuestionResponse
 from app.services.answer_evaluator import embed
+from app.services.embeddings import index_question
 from app.services.question_generator import generate_questions
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,9 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
             last_review=fsrs_card.last_review.isoformat() if fsrs_card.last_review else None,
         ))
     db.commit()
+
+    for q in questions:
+        index_question(q, lesson, db)
 
     return [QuestionResponse.model_validate(q) for q in questions]
 

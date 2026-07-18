@@ -149,6 +149,25 @@ export interface PronunciationCheckResponse {
   accuracy: number;
 }
 
+export interface SearchResultItem {
+  content_type: 'lesson' | 'question'
+  content_id: string
+  content_text: string
+  course_id: string
+  lesson_id: string | null
+  score: number
+}
+
+export function searchContent(
+  query: string,
+  courseId?: string,
+  k = 5,
+): Promise<SearchResultItem[]> {
+  const params = new URLSearchParams({ q: query, k: String(k) })
+  if (courseId) params.set('course_id', courseId)
+  return request<SearchResultItem[]>(`/search?${params}`)
+}
+
 export async function checkPronunciation(
   audio: Blob,
   expectedText: string,

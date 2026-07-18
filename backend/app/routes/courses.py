@@ -7,6 +7,7 @@ from agents.course_agent import generate_course
 from app.database import get_db
 from app.models import Course, Lesson, Module, Objective
 from app.schemas import CourseRequest, CourseResponse
+from app.services.embeddings import index_lesson
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -65,6 +66,10 @@ def create_course(body: CourseRequest, db: Session = Depends(get_db)) -> CourseR
     db.add(course)
     db.commit()
     db.refresh(course)
+
+    for module in course.modules:
+        for lesson in module.lessons:
+            index_lesson(lesson, db)
 
     return CourseResponse.model_validate(course)
 
