@@ -41,12 +41,13 @@ def transcribe(audio: UploadFile = File(...)) -> TranscriptionResponse:
 def pronunciation_check(
     audio: UploadFile = File(...),
     expected_text: str = Form(...),
+    language: str = Form(default="es"),
 ) -> PronunciationCheckResponse:
     """Transcribe an uploaded audio file and diff it against the expected text."""
     with tempfile.TemporaryDirectory() as tmp_dir:
         file_path = _save_upload(audio, tmp_dir)
         try:
-            result = transcribe_audio(file_path)
+            result = transcribe_audio(file_path, language=language)
         except RuntimeError as exc:
             logger.error("Transcription failed: %s", exc)
             raise HTTPException(

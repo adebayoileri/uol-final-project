@@ -130,3 +130,34 @@ export function gradeCard(cardId: string, rating: number): Promise<GradeResponse
     body: JSON.stringify({ card_id: cardId, rating }),
   });
 }
+
+export interface WordDiffItem {
+  op: "match" | "missing" | "extra" | "substituted";
+  expected: string | null;
+  actual: string | null;
+}
+
+export interface PronunciationCheckResponse {
+  expected_text: string;
+  transcribed_text: string;
+  diff: WordDiffItem[];
+  accuracy: number;
+}
+
+export async function checkPronunciation(
+  audio: Blob,
+  expectedText: string,
+  language = "es",
+): Promise<PronunciationCheckResponse> {
+  const ext = audio.type.includes("mp4") ? "mp4" : "webm";
+  const form = new FormData();
+  form.append("audio", audio, `recording.${ext}`);
+  form.append("expected_text", expectedText);
+  form.append("language", language);
+  const res = await fetch(`${API_URL}/pronunciation-check`, { method: "POST", body: form });
+  if (!res.ok) {
+    const body = await res.json().catch(() => null);
+    throw new Error(body?.detail ?? `Request failed with status ${res.status}`);
+  }
+  return res.json();
+}

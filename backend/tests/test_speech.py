@@ -181,3 +181,37 @@ def test_word_diff_with_extra_word():
     diff = compute_word_diff("ask what", "ask what now")
     ops = [d["op"] for d in diff]
     assert "extra" in ops
+
+
+def test_word_diff_spanish_perfect_match():
+    diff = compute_word_diff("hola me llamo juan", "hola me llamo juan")
+    assert all(d["op"] == "match" for d in diff)
+    assert len(diff) == 4
+
+
+def test_word_diff_empty_actual_all_missing():
+    diff = compute_word_diff("hola me llamo juan", "")
+    assert all(d["op"] == "missing" for d in diff)
+    assert len(diff) == 4
+
+
+def test_word_diff_completely_wrong_no_matches():
+    diff = compute_word_diff("hola me llamo juan", "something completely different here")
+    match_count = sum(1 for d in diff if d["op"] == "match")
+    assert match_count == 0
+
+
+def test_pronunciation_check_empty_transcript_zero_accuracy(fake_model_path):
+    with patch(
+        "app.services.transcriber.subprocess.run",
+        side_effect=_fake_whisper_run(""),
+    ):
+        resp = client.post(
+            "/pronunciation-check",
+            files={"audio": ("test.wav", b"fake-audio", "audio/wav")},
+            data={"expected_text": "hola me llamo juan"},
+        )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["accuracy"] == 0.0
+    assert all(item["op"] == "missing" for item in data["diff"])
