@@ -45,6 +45,8 @@ export interface QuestionResponse {
   order_index: number;
   text: string;
   reference_answer: string;
+  question_type: string;
+  code_snippet: string | null;
   created_at: string;
 }
 
@@ -53,6 +55,8 @@ export interface CardResponse {
   question_id: string;
   question_text: string;
   question_reference_answer: string;
+  question_type: string;
+  code_snippet: string | null;
   state: number;
   stability: number | null;
   difficulty: number | null;
@@ -62,7 +66,8 @@ export interface CardResponse {
 export interface AnswerResponse {
   verdict: "correct" | "incorrect";
   score: number;
-  signal_used: "embedding" | "embedding+llm";
+  signal_used: "embedding" | "embedding+llm" | "llm";
+  explanation?: string;
 }
 
 export interface GradeResponse {

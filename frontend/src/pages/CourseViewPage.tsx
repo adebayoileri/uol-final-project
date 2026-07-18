@@ -7,6 +7,7 @@ import {
   type CourseResponse,
   type QuestionResponse,
 } from '../api'
+import CodeBlock from '../components/CodeBlock'
 
 function CourseViewPage() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -124,8 +125,23 @@ function CourseViewPage() {
                       <ol className="mt-4 space-y-2 text-sm">
                         {questions.map((q) => (
                           <li key={q.id} className="rounded-lg border border-[#2a2a3a] bg-[#0a0a0f] p-3">
-                            <p className="font-medium text-white">{q.text}</p>
-                            <p className="mt-1 text-gray-400">{q.reference_answer}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-white">{q.text}</p>
+                              {q.question_type === 'fill_blank' && (
+                                <span className="rounded-full bg-violet-900/50 px-2 py-0.5 text-xs font-medium text-violet-300">
+                                  Fill blank
+                                </span>
+                              )}
+                            </div>
+                            {q.question_type === 'fill_blank' && q.code_snippet && (
+                              <div className="mt-2">
+                                <CodeBlock code={q.code_snippet} />
+                              </div>
+                            )}
+                            <p className="mt-2 text-gray-400">
+                              <span className="text-xs uppercase tracking-wide text-gray-600">Answer: </span>
+                              {q.reference_answer}
+                            </p>
                           </li>
                         ))}
                       </ol>

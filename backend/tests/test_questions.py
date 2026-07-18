@@ -24,6 +24,7 @@ from app.services.answer_evaluator import (
     evaluate_answer,
     embed,
 )
+from app.services.question_generator import _parse_response
 
 # ---------------------------------------------------------------------------
 # Shared DB / client fixtures (mirrors test_courses.py)
@@ -146,6 +147,54 @@ FAKE_EMBEDDING = [0.1] * 384
 GEN_PATCH = "app.routes.lessons.generate_questions"
 EMBED_PATCH = "app.routes.lessons.embed"
 EVAL_PATCH = "app.routes.questions.evaluate_answer"
+CODE_EVAL_PATCH = "app.routes.questions.evaluate_code_answer"
+
+MOCK_PYTHON_QUESTIONS_DATA = [
+    {
+        "question_type": "open",
+        "question": "What is a Python list?",
+        "reference_answer": "An ordered, mutable collection of items.",
+    },
+    {
+        "question_type": "fill_blank",
+        "question": "Fill in the blank to print numbers 0 to 4:",
+        "code_snippet": "for i in range(5):\n    # BLANK",
+        "reference_answer": "    print(i)",
+    },
+    {
+        "question_type": "open",
+        "question": "What does len() return?",
+        "reference_answer": "The number of items in a sequence.",
+    },
+    {
+        "question_type": "fill_blank",
+        "question": "Fill in the blank to increment x by 1:",
+        "code_snippet": "x = 0\n# BLANK\nprint(x)",
+        "reference_answer": "x += 1",
+    },
+]
+
+
+@pytest.fixture()
+def fill_blank_question_id(test_engine, lesson_id):
+    """Insert a fill_blank Question row directly."""
+    fake_emb = [0.1] * 384
+    Session = sessionmaker(bind=test_engine)
+    with Session() as db:
+        q = Question(
+            id=str(uuid.uuid4()),
+            lesson_id=lesson_id,
+            order_index=1,
+            text="Fill in the blank to increment x:",
+            reference_answer="x += 1",
+            reference_embedding=json.dumps(fake_emb),
+            question_type="fill_blank",
+            code_snippet="x = 0\n# BLANK\nprint(x)",
+        )
+        db.add(q)
+        db.commit()
+        qid = q.id
+    return qid
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +364,67 @@ def test_answer_empty_string_returns_422(client, question_id):
 
 
 # ---------------------------------------------------------------------------
+# Fill-blank question type
+# ---------------------------------------------------------------------------
+
+def test_generate_python_questions_contain_fill_blank(client, lesson_id):
+    with patch(GEN_PATCH, return_value=MOCK_PYTHON_QUESTIONS_DATA), \
+         patch(EMBED_PATCH, return_value=FAKE_EMBEDDING):
+        data = client.post(f"/lessons/{lesson_id}/questions/generate").json()
+    types = [q["question_type"] for q in data]
+    assert "fill_blank" in types
+    assert "open" in types
+
+
+def test_fill_blank_question_has_code_snippet(client, lesson_id):
+    with patch(GEN_PATCH, return_value=MOCK_PYTHON_QUESTIONS_DATA), \
+         patch(EMBED_PATCH, return_value=FAKE_EMBEDDING):
+        data = client.post(f"/lessons/{lesson_id}/questions/generate").json()
+    fill_blank = [q for q in data if q["question_type"] == "fill_blank"]
+    assert all(q["code_snippet"] is not None for q in fill_blank)
+    assert all("# BLANK" in q["code_snippet"] for q in fill_blank)
+
+
+def test_fill_blank_answer_routes_to_llm_judge(client, fill_blank_question_id):
+    with patch(CODE_EVAL_PATCH, return_value={
+        "verdict": "correct", "score": 1.0, "signal_used": "llm", "explanation": "equivalent"
+    }) as mock_judge:
+        resp = client.post(
+            f"/questions/{fill_blank_question_id}/answer",
+            json={"answer": "x = x + 1"},
+        )
+    assert resp.status_code == 200
+    mock_judge.assert_called_once()
+    data = resp.json()
+    assert data["verdict"] == "correct"
+    assert data["signal_used"] == "llm"
+    assert data["explanation"] == "equivalent"
+
+
+def test_fill_blank_incorrect_answer_returns_explanation(client, fill_blank_question_id):
+    with patch(CODE_EVAL_PATCH, return_value={
+        "verdict": "incorrect", "score": 0.0, "signal_used": "llm", "explanation": "wrong expression"
+    }):
+        resp = client.post(
+            f"/questions/{fill_blank_question_id}/answer",
+            json={"answer": "print('wrong')"},
+        )
+    data = resp.json()
+    assert data["verdict"] == "incorrect"
+    assert data["explanation"] == "wrong expression"
+
+
+def test_open_question_does_not_route_to_llm_judge(client, question_id):
+    with patch(EVAL_PATCH, return_value={
+        "verdict": "correct", "score": 0.82, "signal_used": "embedding"
+    }) as mock_eval, \
+         patch(CODE_EVAL_PATCH) as mock_code:
+        client.post(f"/questions/{question_id}/answer", json={"answer": "A variable stores a value."})
+    mock_eval.assert_called_once()
+    mock_code.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
 # Evaluation fixture — real sentence-transformers, no Ollama
 #
 # Validates that the chosen thresholds (0.35 / 0.65) achieve ≥ 80% precision
@@ -471,6 +581,79 @@ def test_eval_fixture_correct_precision():
         f"Correct-verdict precision {precision:.0%} is below 80% "
         f"(TP={true_positives}, FP={false_positives})"
     )
+
+
+# ---------------------------------------------------------------------------
+# _parse_response unit tests — covers the array-extraction logic that replaces
+# Ollama's format=json (which coerces output to a single object, breaking arrays)
+# ---------------------------------------------------------------------------
+
+_Q = [{"question": "What is x?", "reference_answer": "A variable."}]
+_Q_JSON = json.dumps(_Q)
+
+
+def test_parse_response_clean_array():
+    assert _parse_response(_Q_JSON) == _Q
+
+
+def test_parse_response_prose_prefix():
+    # Model sometimes adds "Here are the questions:" before the array
+    raw = f"Here are the questions for the lesson:\n{_Q_JSON}"
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_markdown_fence_json():
+    raw = f"```json\n{_Q_JSON}\n```"
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_markdown_fence_no_label():
+    raw = f"```\n{_Q_JSON}\n```"
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_prose_and_fence():
+    raw = f"Sure! Here you go:\n```json\n{_Q_JSON}\n```\nLet me know if you need more."
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_dict_wrapper_questions_key():
+    # format=json sometimes wraps as {"questions": [...]}
+    raw = json.dumps({"questions": _Q})
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_dict_wrapper_question_singular():
+    # llama3.1:8b wraps as {"question": [...]} (singular)
+    raw = json.dumps({"question": _Q})
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_dict_wrapper_arbitrary_key():
+    raw = json.dumps({"items": _Q})
+    assert _parse_response(raw) == _Q
+
+
+def test_parse_response_invalid_json_raises():
+    with pytest.raises(ValueError, match="invalid JSON"):
+        _parse_response("not json at all")
+
+
+def test_parse_response_multi_item_array():
+    items = [
+        {"question": "Q1", "reference_answer": "A1"},
+        {"question": "Q2", "reference_answer": "A2"},
+    ]
+    assert _parse_response(json.dumps(items)) == items
+
+
+def test_parse_response_nested_brackets_intact():
+    # Ensure nested arrays inside items don't confuse the bracket scanner
+    items = [{"question": "Q", "reference_answer": "A", "tags": ["x", "y"]}]
+    assert _parse_response(json.dumps(items)) == items
+
+
+# ---------------------------------------------------------------------------
 
 
 def test_eval_fixture_all_correct_pairs_pass():

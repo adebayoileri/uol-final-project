@@ -79,6 +79,8 @@ class Question(Base):
     text: Mapped[str] = mapped_column(Text, nullable=False)
     reference_answer: Mapped[str] = mapped_column(Text, nullable=False)
     reference_embedding: Mapped[str] = mapped_column(Text, nullable=False)  # JSON float list
+    question_type: Mapped[str] = mapped_column(Text, nullable=False, default="open")
+    code_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )

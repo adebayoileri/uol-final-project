@@ -1,5 +1,34 @@
 # Decisions Log
 
+## 2026-07-18 — LLM judge instead of embeddings for Python fill-blank answer evaluation
+
+**Context**: `POST /questions/{id}/answer` needs to evaluate Python code fill-in-the-blank answers. The existing answer evaluation path uses cosine similarity on sentence-transformer embeddings (all-MiniLM-L6-v2, 384-dim) with an LLM fallback for borderline scores. This works well for prose answers but is unreliable for short code.
+
+**Problem with embeddings on code**: Short code fragments produce misleading similarity scores. `print(i)` and `print(x)` have nearly identical embeddings (same structure, common tokens) but are semantically very different in context. Conversely, `x += 1` and `x = x + 1` are semantically identical but score around 0.55 cosine similarity — placing them in the grey zone and triggering an LLM call anyway, just with the wrong framing.
+
+**Alternatives considered**:
+- Cosine similarity (embedding path) — rejected. Structure dominates over semantics for 1–3 token code fragments; false-positive rate is too high.
+- String normalisation (strip whitespace, lower) — rejected. `x += 1` vs `x = x + 1` are not string-equivalent; would incorrectly mark correct answers as wrong.
+- AST comparison (parse both answers and compare AST nodes) — rejected. Requires sandboxed Python execution or a safe eval environment; out of scope per Phase 1 decisions.
+
+**Reason**: A direct LLM judge with a code-specific prompt handles semantic equivalence naturally and produces an `explanation` field visible to the student. The judge prompt includes the full code snippet context (with `# BLANK` marker) so the model can evaluate the answer in situ. `signal_used: "llm"` is returned to the client so the frontend can suppress the embedding-similarity percentage (meaningless for code).
+
+**Status**: Active.
+
+---
+
+## 2026-07-18 — No code execution for fill-blank exercises
+
+**Context**: Fill-blank exercises ask students to write one line of Python. The obvious enhancement is to execute the snippet and check the output, not just judge the line in isolation.
+
+**Decision**: No code execution. Explicitly out of scope.
+
+**Reason**: Sandboxed execution adds significant infrastructure complexity (subprocess isolation, resource limits, timeout handling, security audit). For a single-user local prototype, the LLM judge provides sufficient correctness signal without that complexity. This decision was made in Phase 1 and is reaffirmed here.
+
+**Status**: Active.
+
+---
+
 ## 2026-07-18 — Word-level diff instead of phoneme-level scoring for pronunciation feedback
 
 **Context**: `/pronunciation-check` needed feedback beyond a binary pass/fail — the user should see exactly which words they got right, missed, or mispronounced. Two approaches were on the table: (1) phoneme-level alignment (Levenshtein on IPA strings via espeak-ng or a G2P model), (2) word-level diff on Whisper's existing transcript.

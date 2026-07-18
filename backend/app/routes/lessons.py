@@ -6,7 +6,7 @@ from fsrs import Card as FSRSCard
 from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
-from app.models import Card as DBCard, Lesson, Question
+from app.models import Card as DBCard, Lesson, Module, Question
 from app.schemas import QuestionResponse
 from app.services.answer_evaluator import embed
 from app.services.question_generator import generate_questions
@@ -23,7 +23,10 @@ router = APIRouter(prefix="/lessons", tags=["lessons"])
 def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
     lesson = (
         db.query(Lesson)
-        .options(selectinload(Lesson.objectives))
+        .options(
+            selectinload(Lesson.objectives),
+            selectinload(Lesson.module).selectinload(Module.course),
+        )
         .filter(Lesson.id == lesson_id)
         .first()
     )
@@ -48,6 +51,8 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
             text=qdata["question"],
             reference_answer=qdata["reference_answer"],
             reference_embedding=json.dumps(ref_emb),
+            question_type=qdata.get("question_type", "open"),
+            code_snippet=qdata.get("code_snippet"),
         )
         questions.append(q)
 
