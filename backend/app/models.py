@@ -81,6 +81,7 @@ class Question(Base):
     reference_embedding: Mapped[str] = mapped_column(Text, nullable=False)  # JSON float list
     question_type: Mapped[str] = mapped_column(Text, nullable=False, default="open")
     code_snippet: Mapped[str | None] = mapped_column(Text, nullable=True)
+    course_id: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False
     )
@@ -102,6 +103,7 @@ class Card(Base):
     due: Mapped[str] = mapped_column(Text, nullable=False)           # ISO 8601 UTC
     last_review: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), nullable=False)
+    course_id: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     question: Mapped["Question"] = relationship("Question", back_populates="card")
     reviews: Mapped[list["Review"]] = relationship(

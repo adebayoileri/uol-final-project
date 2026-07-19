@@ -1,5 +1,30 @@
 # Decisions Log
 
+## 2026-07-18 — Denormalised `course_id` on `questions` and `cards`
+
+**Context**: The review query pattern is `cards WHERE course_id = ? AND due <= ?`. Without a
+`course_id` column on `Card`, scoping review to one course requires a 4-hop join
+(card → question → lesson → module → course) on every `GET /review/next` call — a full table
+scan that grows with total card count across all courses.
+
+**Alternatives considered**:
+- Join-based scoping — rejected. SQLite can't use an index to efficiently scope a query whose
+  filter column lives 3 tables away; any index on an intermediate table still requires scanning
+  all cards.
+- Store `course_id` only on `Card`, not `Question` — rejected. `Question` is also queried
+  directly (e.g. answer evaluation, search indexing) and benefits from the same denormalisation.
+
+**Reason**: Adding `course_id` directly to both `questions` and `cards` lets SQLite use the
+`(course_id, due)` composite index on cards, cutting the review query from O(N) to O(log N + k)
+where k is cards due in that course. The redundancy is safe: `course_id` is write-once (set at
+question-generation time and never updated). Backfill via the `lesson → module` join chain runs
+at startup in `_run_migrations()`, same pattern as the existing `question_type`/`code_snippet`
+migrations — `WHERE course_id IS NULL` and `IF NOT EXISTS` make it fully idempotent.
+
+**Status**: Active.
+
+---
+
 ## 2026-07-18 — Semantic search: SQLite + numpy over FAISS / vector DB
 
 **Context**: Sub-phase 3C required a search index over lesson and question content. Options were a dedicated vector database (FAISS, Chroma, Qdrant) or a simpler SQLite + numpy approach.
