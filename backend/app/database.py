@@ -26,6 +26,7 @@ def _run_migrations() -> None:
             "ALTER TABLE questions ADD COLUMN code_snippet TEXT",
             "ALTER TABLE questions ADD COLUMN course_id TEXT",
             "ALTER TABLE cards ADD COLUMN course_id TEXT",
+            "ALTER TABLE lessons ADD COLUMN completed_at DATETIME",
         ]:
             try:
                 conn.execute(text(stmt))

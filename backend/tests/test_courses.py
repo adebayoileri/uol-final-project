@@ -272,3 +272,106 @@ def test_get_course_not_found_returns_404(client):
     response = client.get("/courses/nonexistent-id")
     assert response.status_code == 404
     assert response.json()["detail"] == "Course not found."
+
+
+# ---------------------------------------------------------------------------
+# GET /courses — list with progress summary
+# ---------------------------------------------------------------------------
+
+def test_list_courses_empty(client):
+    resp = client.get("/courses")
+    assert resp.status_code == 200
+    assert resp.json() == []
+
+
+def test_list_courses_returns_all(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        client.post("/courses", json=SHORT_TERM_BODY)
+        client.post("/courses", json=LONG_TERM_BODY)
+    resp = client.get("/courses")
+    assert resp.status_code == 200
+    assert len(resp.json()) == 2
+
+
+def test_list_courses_progress_summary_shape(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        client.post("/courses", json=SHORT_TERM_BODY)
+    data = client.get("/courses").json()
+    ps = data[0]["progress_summary"]
+    assert set(ps.keys()) == {"total_lessons", "completed_lessons", "total_cards", "due_now"}
+    assert ps["total_lessons"] > 0
+    assert ps["completed_lessons"] == 0
+    assert ps["total_cards"] == 0
+    assert ps["due_now"] == 0
+
+
+# ---------------------------------------------------------------------------
+# GET /courses/{id}/lessons/{lesson_id} — lesson detail
+# ---------------------------------------------------------------------------
+
+def test_lesson_detail_returns_objectives_and_questions(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    resp = client.get(f"/courses/{course['id']}/lessons/{lesson_id}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "objectives" in data
+    assert isinstance(data["objectives"], list)
+    assert "questions" in data
+    assert isinstance(data["questions"], list)
+    assert "completed_at" in data
+    assert data["completed_at"] is None
+
+
+def test_lesson_detail_wrong_course_returns_404(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    resp = client.get(f"/courses/nonexistent-course-id/lessons/{lesson_id}")
+    assert resp.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# POST /lessons/{id}/complete — lesson completion
+# ---------------------------------------------------------------------------
+
+def test_lesson_complete_returns_204(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    resp = client.post(f"/lessons/{lesson_id}/complete")
+    assert resp.status_code == 204
+
+
+def test_lesson_complete_sets_completed_at(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    client.post(f"/lessons/{lesson_id}/complete")
+    detail = client.get(f"/courses/{course['id']}/lessons/{lesson_id}").json()
+    assert detail["completed_at"] is not None
+
+
+def test_lesson_complete_idempotent(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response()):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    client.post(f"/lessons/{lesson_id}/complete")
+    resp2 = client.post(f"/lessons/{lesson_id}/complete")
+    assert resp2.status_code == 204
+
+
+def test_lesson_complete_increments_progress(client):
+    with patch(PATCH_TARGET, return_value=_make_llm_response(num_modules=1, lessons_per_module=2)):
+        course = client.post("/courses", json=SHORT_TERM_BODY).json()
+    lesson_id = course["modules"][0]["lessons"][0]["id"]
+    client.post(f"/lessons/{lesson_id}/complete")
+    ps = client.get("/courses").json()[0]["progress_summary"]
+    assert ps["completed_lessons"] == 1
+    assert ps["total_lessons"] == 2
+
+
+def test_lesson_complete_nonexistent_returns_404(client):
+    resp = client.post("/lessons/nonexistent-lesson-id/complete")
+    assert resp.status_code == 404

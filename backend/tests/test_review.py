@@ -61,9 +61,10 @@ def db_session(test_engine):
         db.close()
 
 
-def _seed_card(db_session, due_offset_hours: int = -1) -> Card:
+def _seed_card(db_session, due_offset_hours: int = -1, course_id: str | None = None) -> Card:
     """Insert the minimal Course→Module→Lesson→Question→Card chain.
     due_offset_hours < 0 → card already due; > 0 → card not yet due.
+    course_id overrides the generated course's id on the card for scope testing.
     """
     course = Course(
         goal="Learn Python",
@@ -113,6 +114,7 @@ def _seed_card(db_session, due_offset_hours: int = -1) -> Card:
         difficulty=None,
         due=due.isoformat(),
         last_review=None,
+        course_id=course_id,
     )
     db_session.add(card)
     db_session.commit()
@@ -222,3 +224,48 @@ def test_grade_state_advances_on_good(client, db_session):
     assert resp2.status_code == 200
     data2 = resp2.json()
     assert data2["state"] == 2  # State.Review
+
+
+# ---------------------------------------------------------------------------
+# R2 — course_id scoping tests
+# ---------------------------------------------------------------------------
+
+def test_next_card_scoped_to_correct_course(client, db_session):
+    """course_id param returns the matching course's card, ignoring other courses."""
+    card_a = _seed_card(db_session, course_id="cid-a", due_offset_hours=-1)
+    _seed_card(db_session, course_id="cid-b", due_offset_hours=-1)
+    resp = client.get("/review/next?course_id=cid-a")
+    assert resp.status_code == 200
+    assert resp.json()["id"] == card_a.id
+
+
+def test_next_out_of_scope_card_returns_204(client, db_session):
+    """course_id filter excludes cards from other courses even when they are due."""
+    _seed_card(db_session, course_id="cid-a", due_offset_hours=-1)
+    resp = client.get("/review/next?course_id=cid-b")
+    assert resp.status_code == 204
+
+
+def test_next_future_card_in_scope_returns_204(client, db_session):
+    """A not-yet-due card in the matching course returns 204."""
+    _seed_card(db_session, course_id="cid-a", due_offset_hours=+24)
+    resp = client.get("/review/next?course_id=cid-a")
+    assert resp.status_code == 204
+
+
+def test_queue_counts_scoped_and_mixed(client, db_session):
+    """Queue endpoint returns correct counts for mixed due dates, excluding other courses."""
+    cid = "cid-queue"
+    _seed_card(db_session, course_id=cid, due_offset_hours=-1)    # overdue → due_now + today + week
+    _seed_card(db_session, course_id=cid, due_offset_hours=+3)    # due in 3h → today + week
+    _seed_card(db_session, course_id=cid, due_offset_hours=+50)   # due in 50h (~2d) → week only
+    _seed_card(db_session, course_id=cid, due_offset_hours=+200)  # due in 200h (~8d) → none
+    _seed_card(db_session, course_id="other-cid", due_offset_hours=-1)  # excluded by scope
+
+    resp = client.get(f"/review/queue?course_id={cid}")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["total"] == 4
+    assert data["due_now"] == 1
+    assert data["due_today"] == 2   # -1h and +3h both fall within today's remaining hours
+    assert data["due_this_week"] == 3  # -1h, +3h, +50h all within 7 days

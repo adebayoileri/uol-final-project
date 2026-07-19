@@ -1,17 +1,24 @@
-import { useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { createCourse, type CourseRequest } from '../api'
+import { useEffect, useState, type FormEvent } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { createCourse, getCourses, type CourseRequest } from '../api'
 
 const inputClass =
   'mt-1 block w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none'
 
-function GoalInputPage() {
+export default function Home() {
   const navigate = useNavigate()
+  const [hasCourses, setHasCourses] = useState(false)
   const [goal, setGoal] = useState('')
   const [duration, setDuration] = useState<CourseRequest['duration']>('short_term')
   const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    getCourses()
+      .then((courses) => setHasCourses(courses.length > 0))
+      .catch(() => {})
+  }, [])
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault()
@@ -29,7 +36,20 @@ function GoalInputPage() {
 
   return (
     <div>
-      <h1 className="text-2xl font-semibold text-white">What do you want to learn?</h1>
+      {hasCourses && (
+        <div className="mb-8 flex gap-3">
+          <Link
+            to="/courses"
+            className="rounded-lg bg-violet-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-violet-500"
+          >
+            Continue learning
+          </Link>
+        </div>
+      )}
+
+      <h1 className="text-2xl font-semibold text-white">
+        {hasCourses ? 'Start a new goal' : 'What do you want to learn?'}
+      </h1>
       <p className="mt-1 text-sm text-gray-400">
         Describe your goal and we'll generate a structured course for you.
       </p>
@@ -99,5 +119,3 @@ function GoalInputPage() {
     </div>
   )
 }
-
-export default GoalInputPage
