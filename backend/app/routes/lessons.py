@@ -54,6 +54,7 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
             reference_embedding=json.dumps(ref_emb),
             question_type=qdata.get("question_type", "open"),
             code_snippet=qdata.get("code_snippet"),
+            course_id=lesson.module.course_id,
         )
         questions.append(q)
 
@@ -70,6 +71,7 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
             difficulty=fsrs_card.difficulty,
             due=fsrs_card.due.isoformat(),
             last_review=fsrs_card.last_review.isoformat() if fsrs_card.last_review else None,
+            course_id=lesson.module.course_id,
         ))
     db.commit()
 
