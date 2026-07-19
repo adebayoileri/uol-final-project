@@ -49,6 +49,7 @@ class Lesson(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
     module: Mapped["Module"] = relationship("Module", back_populates="lessons")
     objectives: Mapped[list["Objective"]] = relationship(

@@ -18,6 +18,7 @@ export interface LessonResponse {
   title: string;
   description: string;
   duration_minutes: number;
+  completed_at: string | null;
   objectives: ObjectiveResponse[];
 }
 
@@ -118,8 +119,59 @@ export function getQuestions(lessonId: string): Promise<QuestionResponse[]> {
   return request<QuestionResponse[]>(`/lessons/${lessonId}/questions`);
 }
 
-export function getNextCard(): Promise<CardResponse | null> {
-  return request<CardResponse | null>("/review/next");
+export function getNextCard(courseId?: string): Promise<CardResponse | null> {
+  const params = courseId ? `?course_id=${courseId}` : "";
+  return request<CardResponse | null>(`/review/next${params}`);
+}
+
+export interface ProgressSummary {
+  total_lessons: number;
+  completed_lessons: number;
+  total_cards: number;
+  due_now: number;
+}
+
+export interface CourseSummaryResponse {
+  id: string;
+  title: string;
+  category: string;
+  created_at: string;
+  progress_summary: ProgressSummary;
+}
+
+export interface ReviewQueueResponse {
+  total: number;
+  due_now: number;
+  due_today: number;
+  due_this_week: number;
+}
+
+export interface LessonDetailResponse {
+  id: string;
+  order_index: number;
+  title: string;
+  description: string;
+  duration_minutes: number;
+  completed_at: string | null;
+  objectives: ObjectiveResponse[];
+  questions: QuestionResponse[];
+}
+
+export function getCourses(): Promise<CourseSummaryResponse[]> {
+  return request<CourseSummaryResponse[]>("/courses");
+}
+
+export function getReviewQueue(courseId?: string): Promise<ReviewQueueResponse> {
+  const params = courseId ? `?course_id=${courseId}` : "";
+  return request<ReviewQueueResponse>(`/review/queue${params}`);
+}
+
+export function getLessonDetail(courseId: string, lessonId: string): Promise<LessonDetailResponse> {
+  return request<LessonDetailResponse>(`/courses/${courseId}/lessons/${lessonId}`);
+}
+
+export function completeLesson(lessonId: string): Promise<null> {
+  return request<null>(`/lessons/${lessonId}/complete`, { method: "POST" });
 }
 
 export function answerQuestion(questionId: string, answer: string): Promise<AnswerResponse> {

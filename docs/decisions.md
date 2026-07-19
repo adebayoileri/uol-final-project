@@ -1,5 +1,99 @@
 # Decisions Log
 
+## 2026-07-19 — Frontend: no shared data-fetching library; local state only
+
+**Context**: R5 adds 5 pages. Choosing whether to introduce TanStack Query, SWR, or
+a global store (Zustand etc.) vs. keeping the current pattern of per-component `useEffect` + `useState`.
+
+**Reason**: The app is single-user with no concurrent mutations and no cross-page cache
+invalidation requirements. Each page fetches its own data on mount. Adding a query library
+would introduce a new dependency for negligible gain at this scale (5 pages, 3–4 distinct
+fetch sites). The `request<T>()` helper in `api.ts` is already a thin, consistent wrapper.
+If a future session adds optimistic mutations or shared cart/session state, TanStack Query
+would be the right upgrade — defer until then.
+
+**Status**: Active.
+
+---
+
+## 2026-07-19 — ReviewSession shares one component for scoped and global review
+
+**Context**: The IA has two review routes: `/courses/:courseId/review` (course-scoped) and
+`/review` (global). These could be two separate components or one parameterised component.
+
+**Reason**: The only difference between the two flows is whether `courseId` is passed to
+`getNextCard` and `getReviewQueue`. A single `ReviewSession` component reads `courseId` from
+`useParams()` (undefined on the global route) and conditionally appends the query param.
+One component, one test surface, no duplication. The back-link adjusts accordingly
+(`/courses/:courseId` when scoped, `/courses` when global).
+
+**Status**: Active.
+
+---
+
+## 2026-07-19 — Lesson-completion semantics: explicit mark, not automatic
+
+**Context**: `POST /lessons/{id}/complete` needs a definition of what "complete" means.
+Two approaches were on the table: (1) automatic — trigger completion when all FSRS cards for
+the lesson reach `State.Review`; (2) explicit — user presses a "Mark complete" button.
+
+**Alternatives considered**:
+- Automatic on FSRS card graduation — rejected. A lesson can have 3 questions, all of which
+  reach `State.Review` after a week of daily reviews. But the user might have completed the
+  lesson content on day 1. Tying completion to the scheduler conflates two cognitively
+  different activities: reading/studying a lesson (one-time) and recalling via spaced
+  repetition (ongoing).
+- Automatic on question generation — rejected. Generating questions is not the same as
+  having studied them; it's a tool action, not a learning signal.
+
+**Reason**: An explicit "Mark as complete" action models the user's intent accurately. The
+lesson is "done" when the user says so. `completed_at` is set once, never overwritten (idempotent
+POST). Progress summary (`completed_lessons / total_lessons`) counts lessons with
+`completed_at IS NOT NULL`. The FSRS review queue is separate and ongoing regardless of lesson
+completion status.
+
+**Status**: Active.
+
+---
+
+## 2026-07-19 — Course list returns `progress_summary` as a denormalised aggregate
+
+**Context**: `GET /courses` needs to return progress counts without fetching full course trees.
+
+**Reason**: Four `COUNT(*)` queries per course (total_lessons, completed_lessons, total_cards,
+due_now) run in <1ms each on indexed columns (`Module.course_id` via FK, `Card.course_id` via
+`ix_cards_course_due`). For 5 courses, 20 total queries ≈ <5ms. No full tree serialisation,
+no N+1 on objectives. The counts are computed in `app/services/progress.py` and are correct
+at request time — no caching, no stale data.
+
+**Status**: Active.
+
+---
+
+## 2026-07-18 — Review endpoint: 204 for "no cards due" and optional `course_id` scope
+
+**Context**: `GET /review/next` needed two contract decisions — what to return when no card is
+due, and whether to scope results by course.
+
+**Alternatives considered**:
+- 404 for "no cards due" — rejected. 404 means "resource not found", which is wrong: the queue
+  exists, it's just empty right now. Misleading to the frontend.
+- 200 with null body — rejected. Forces the client to null-check before reading any field.
+  204 is the semantically correct signal for "operation succeeded, nothing to return."
+- Required `course_id` (no global mode) — rejected. A global "all courses" review mode is a
+  valid use case (the spec's acceptance criteria explicitly say omitting course_id should
+  work). Optional param avoids breaking the current frontend while enabling scoped review.
+
+**Reason**: `GET /review/next?course_id=<id>` scopes to that course's cards. Omitting
+`course_id` returns the globally next due card across all courses. Implemented as a conditional
+`.filter(Card.course_id == course_id)` in SQLAlchemy — clean, no raw SQL. `GET /review/queue`
+adds the same scope parameter and returns `{total, due_now, due_today, due_this_week}` for the
+review-hub UI. No `user_id` filter: single-user app, no auth.
+
+**Status**: Active.
+
+---
+
 ## 2026-07-18 — Denormalised `course_id` on `questions` and `cards`
 
 **Context**: The review query pattern is `cards WHERE course_id = ? AND due <= ?`. Without a

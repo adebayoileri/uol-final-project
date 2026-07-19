@@ -1,7 +1,8 @@
 import json
 import logging
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from fsrs import Card as FSRSCard
 from sqlalchemy.orm import Session, selectinload
 
@@ -91,3 +92,14 @@ def list_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
         .order_by(Question.order_index)
         .all()
     )
+
+
+@router.post("/{lesson_id}/complete", status_code=204)
+def complete_lesson(lesson_id: str, db: Session = Depends(get_db)):
+    lesson = db.get(Lesson, lesson_id)
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+    if lesson.completed_at is None:
+        lesson.completed_at = datetime.now(timezone.utc)
+        db.commit()
+    return Response(status_code=204)

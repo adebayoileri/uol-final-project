@@ -1,13 +1,13 @@
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from fsrs import Card as FSRSCard, Rating, Scheduler
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Card, Review
-from app.schemas import CardResponse, GradeRequest, GradeResponse
+from app.schemas import CardResponse, GradeRequest, GradeResponse, ReviewQueueResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/review", tags=["review"])
@@ -28,14 +28,15 @@ def _to_fsrs_card(db_card: Card) -> FSRSCard:
 
 
 @router.get("/next", response_model=CardResponse)
-def next_card(db: Session = Depends(get_db)):
+def next_card(
+    course_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
     now_iso = datetime.now(timezone.utc).isoformat()
-    card = (
-        db.query(Card)
-        .filter(Card.due <= now_iso)
-        .order_by(Card.due)
-        .first()
-    )
+    q = db.query(Card).filter(Card.due <= now_iso)
+    if course_id is not None:
+        q = q.filter(Card.course_id == course_id)
+    card = q.order_by(Card.due).first()
     if card is None:
         return Response(status_code=204)
     return CardResponse(
@@ -49,6 +50,28 @@ def next_card(db: Session = Depends(get_db)):
         stability=card.stability,
         difficulty=card.difficulty,
         due=card.due,
+    )
+
+
+@router.get("/queue", response_model=ReviewQueueResponse)
+def review_queue(
+    course_id: str | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+    end_of_today = now.replace(hour=23, minute=59, second=59, microsecond=999999).isoformat()
+    end_of_week = (now + timedelta(days=7)).isoformat()
+
+    base = db.query(Card)
+    if course_id is not None:
+        base = base.filter(Card.course_id == course_id)
+
+    return ReviewQueueResponse(
+        total=base.count(),
+        due_now=base.filter(Card.due <= now_iso).count(),
+        due_today=base.filter(Card.due <= end_of_today).count(),
+        due_this_week=base.filter(Card.due <= end_of_week).count(),
     )
 
 

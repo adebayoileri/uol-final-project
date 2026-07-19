@@ -26,6 +26,7 @@ class LessonResponse(BaseModel):
     title: str
     description: str
     duration_minutes: int
+    completed_at: datetime | None
     objectives: list[ObjectiveResponse]
 
 
@@ -132,3 +133,38 @@ class SearchResultItem(BaseModel):
     course_id: str
     lesson_id: str | None
     score: float
+
+
+class ReviewQueueResponse(BaseModel):
+    total: int
+    due_now: int
+    due_today: int
+    due_this_week: int
+
+
+class ProgressSummary(BaseModel):
+    total_lessons: int
+    completed_lessons: int
+    total_cards: int
+    due_now: int
+
+
+class CourseSummaryResponse(BaseModel):
+    id: str
+    title: str
+    category: str
+    created_at: datetime
+    progress_summary: ProgressSummary
+
+
+class LessonDetailResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
+    order_index: int
+    title: str
+    description: str
+    duration_minutes: int
+    completed_at: datetime | None
+    objectives: list[ObjectiveResponse]
+    questions: list["QuestionResponse"]
