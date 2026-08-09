@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useLayoutEffect, useRef, useState } from 'react'
 
 interface SSEOptions {
   onChunk: (token: string) => void
@@ -9,6 +9,13 @@ interface SSEOptions {
 export function useSSE(url: string, opts: SSEOptions) {
   const [isStreaming, setIsStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+
+  // Callers pass a fresh object literal every render, so `opts` can never be a
+  // useCallback dep without re-creating `start` on every render.
+  const optsRef = useRef(opts)
+  useLayoutEffect(() => {
+    optsRef.current = opts
+  })
 
   const start = useCallback(
     async (body: object) => {
@@ -43,13 +50,13 @@ export function useSSE(url: string, opts: SSEOptions) {
             if (!line.startsWith('data: ')) continue
             const payload = line.slice(6).trim()
             if (payload === '[DONE]') {
-              opts.onDone?.()
+              optsRef.current.onDone?.()
               return
             }
             try {
               const parsed = JSON.parse(payload)
-              if (parsed.token) opts.onChunk(parsed.token)
-              if (parsed.error) opts.onError?.(parsed.error)
+              if (parsed.token) optsRef.current.onChunk(parsed.token)
+              if (parsed.error) optsRef.current.onError?.(parsed.error)
             } catch {
               // ignore malformed SSE lines
             }
@@ -57,13 +64,13 @@ export function useSSE(url: string, opts: SSEOptions) {
         }
       } catch (err) {
         if ((err as Error).name !== 'AbortError') {
-          opts.onError?.(err instanceof Error ? err.message : 'Stream failed')
+          optsRef.current.onError?.(err instanceof Error ? err.message : 'Stream failed')
         }
       } finally {
         setIsStreaming(false)
       }
     },
-    [url, opts],
+    [url],
   )
 
   const abort = useCallback(() => {

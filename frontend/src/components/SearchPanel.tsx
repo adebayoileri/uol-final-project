@@ -36,7 +36,11 @@ function SearchPanel({ courseId }: Props) {
   return (
     <div className="mt-4">
       <div className="relative">
+        <label htmlFor="content-search" className="sr-only">
+          Search lessons and questions
+        </label>
         <input
+          id="content-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -48,6 +52,14 @@ function SearchPanel({ courseId }: Props) {
         )}
       </div>
 
+      <p className="sr-only" aria-live="polite">
+        {loading
+          ? 'Searching'
+          : searched
+            ? `${results.length} result${results.length === 1 ? '' : 's'}`
+            : ''}
+      </p>
+
       {searched && results.length === 0 && !loading && (
         <p className="mt-2 text-sm text-gray-500">No results.</p>
       )}
@@ -57,7 +69,11 @@ function SearchPanel({ courseId }: Props) {
           {results.map((r) => (
             <li key={r.content_id}>
               <Link
-                to={`/courses/${r.course_id}`}
+                to={
+                  r.lesson_id
+                    ? `/courses/${r.course_id}/lessons/${r.lesson_id}`
+                    : `/courses/${r.course_id}`
+                }
                 className="flex items-start gap-3 rounded-lg border border-[#2a2a3a] bg-[#111118] px-4 py-2.5 text-sm hover:bg-[#1a1a24]"
               >
                 <span
@@ -69,7 +85,7 @@ function SearchPanel({ courseId }: Props) {
                 >
                   {r.content_type === 'lesson' ? 'Lesson' : 'Question'}
                 </span>
-                <span className="text-gray-300">{r.content_text}</span>
+                <span className="text-gray-300 line-clamp-2">{r.content_text}</span>
                 <span className="ml-auto shrink-0 text-xs text-gray-600">
                   {Math.round(r.score * 100)}%
                 </span>

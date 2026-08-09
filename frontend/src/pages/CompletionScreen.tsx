@@ -1,31 +1,31 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import {
   getCourse,
   getMastery,
   getAchievements,
   getReviewQueue,
-  CourseSummaryResponse,
   MasteryResponse,
   AchievementResponse,
   ReviewQueueResponse,
   CourseResponse,
 } from '../api'
+import { API_URL } from '../config'
 import MasteryBar from '../components/MasteryBar'
 import AchievementCard from '../components/AchievementCard'
 
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-
 export default function CompletionScreen() {
   const { courseId } = useParams<{ courseId: string }>()
-  const navigate = useNavigate()
 
   const [course, setCourse] = useState<CourseResponse | null>(null)
   const [mastery, setMastery] = useState<MasteryResponse | null>(null)
   const [achievements, setAchievements] = useState<AchievementResponse[]>([])
   const [queue, setQueue] = useState<ReviewQueueResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  // Gates the render. A failed certificate download must NOT wipe the screen,
+  // so it reports through `downloadError` instead.
   const [error, setError] = useState<string | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
 
   useEffect(() => {
@@ -49,6 +49,7 @@ export default function CompletionScreen() {
   async function handleDownload() {
     if (!courseId) return
     setDownloading(true)
+    setDownloadError(null)
     try {
       const res = await fetch(`${API_URL}/courses/${courseId}/certificate`)
       if (!res.ok) {
@@ -63,7 +64,7 @@ export default function CompletionScreen() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Download failed')
+      setDownloadError(err instanceof Error ? err.message : 'Download failed')
     } finally {
       setDownloading(false)
     }
@@ -126,8 +127,14 @@ export default function CompletionScreen() {
         </section>
       )}
 
-      {/* Actions */}
+      {/* Actions — primary first, so visual hierarchy matches DOM order */}
       <div className="flex flex-col gap-3">
+        <Link
+          to={`/courses/${courseId}/review`}
+          className="w-full rounded-lg bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-500 transition-colors text-center"
+        >
+          Review cards
+        </Link>
         <button
           onClick={handleDownload}
           disabled={downloading}
@@ -135,11 +142,16 @@ export default function CompletionScreen() {
         >
           {downloading ? 'Generating PDF…' : 'Download Certificate'}
         </button>
+        {downloadError && (
+          <p role="alert" className="text-sm text-red-400 text-center">
+            {downloadError}
+          </p>
+        )}
         <Link
-          to={`/courses/${courseId}/review`}
-          className="w-full rounded-lg bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-500 transition-colors text-center"
+          to={`/courses/${courseId}`}
+          className="w-full rounded-lg border border-[#2a2a3a] px-5 py-3 text-sm font-medium text-gray-400 hover:text-white hover:border-violet-600 transition-colors text-center"
         >
-          Review cards
+          Back to course
         </Link>
         <Link
           to="/"

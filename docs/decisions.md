@@ -418,3 +418,52 @@ main: processing 'samples/jfk.wav' (176000 samples, 11.0 sec), 4 threads, 1 proc
 **Reason**: `GET /courses/{course_id}` was added to `app/routes/courses.py`, reusing `CourseResponse` and the same `selectinload` eager-loading pattern already used in `app/routes/lessons.py`. `generate_lesson_questions` (`app/routes/lessons.py`) now creates one `Card` per generated `Question` inline — same construction `backfill_cards.py` already used (`FSRSCard()` default-constructed, fields copied across) — so a question is reviewable the moment it's generated. `Card.question_id`'s existing `UniqueConstraint` makes this safe against double-creation. `backfill_cards.py` is kept as-is for any pre-existing questions from before this change.
 
 **Status**: Active.
+----
+
+## 2026-08-09 — Design tokens in a Tailwind v4 `@theme` block, not a config file or CSS-in-JS
+
+**Context**: The frontend had no design system at all. `src/index.css` was seven lines; five surface colours (`#0a0a0f`, `#111118`, `#1a1a24`, `#2a2a3a`, `#0d0d14`) were hand-repeated as arbitrary-value classes in every file, so `border-[#2a2a3a]` alone appeared in nearly every component. Nothing could be changed centrally.
+
+**Alternatives considered**:
+- A `tailwind.config.js` with a `theme.extend` block — rejected. Tailwind v4 (which this project already uses via `@tailwindcss/vite`) has no config file by design; adding one back would fight the toolchain.
+- A TypeScript token module consumed by CSS-in-JS — rejected. Introduces a runtime styling dependency and a second source of truth alongside Tailwind's utilities, for a single-developer dissertation project where the utilities already work.
+
+**Reason**: `@theme` is v4's native mechanism and generates both the CSS custom properties and the matching utility classes from one declaration, so `--color-border` yields `border-border`, `text-border`, etc. automatically. Type steps are declared as *sets* — `--text-display-2xl` binds size, `--text-display-2xl--line-height`, `--text-display-2xl--letter-spacing` and `--text-display-2xl--font-weight` together — which enforces the WWDC 2020 typography rule that tracking and leading are size-specific and must never be applied as one fixed value across a scale. A useful confirmation that the tokens are wired correctly: the editor's Tailwind plugin immediately began flagging every legacy `border-[#2a2a3a]` as "can be written as `border-border`", which doubles as a migration checklist for the later phases.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — Absolute `API_URL` for narration and chat, not a Vite dev-server proxy
+
+**Context**: `AudioPlayer` and `AIAssistantPanel` fetched relative paths (`/api/lessons/...`) while every other caller used `const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'`. No proxy was ever configured in `vite.config.ts`, so both requests hit the Vite dev server and 404'd. The Phase D audio narration and Phase E streaming chat features had therefore never worked in a browser despite both being implemented and committed.
+
+**Alternatives considered**:
+- Add a `server.proxy` entry mapping `/api` to `http://localhost:8000` — rejected. It would work under `vite dev` and silently break under `vite build` / `vite preview` and any static deployment, since a dev-server proxy does not exist in a production bundle. It would also leave two competing conventions in one codebase.
+
+**Reason**: The backend's CORS middleware already sets `allow_origins=["http://localhost:5173"]`, so cross-origin requests from the dev server are permitted with no additional configuration, and `.env` already carries `VITE_API_URL`. Switching both components to the absolute base makes them consistent with `api.ts` and survives a production build. The constant was extracted to a single `src/config.ts` in the same change, removing four duplicate declarations.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — Self-hosted Inter Variable rather than the platform system font
+
+**Context**: The app had no `font-family` declaration at all, inheriting Tailwind Preflight's `system-ui` stack. The redesign introduces a type scale with per-step tracking values tuned to a specific typeface.
+
+**Alternatives considered**:
+- Keep the system stack (`system-ui`) — this is what Apple's own guidance recommends, since the platform font ships optical sizing, tracking tables and legibility tuning already. On macOS it resolves to SF Pro, which is excellent.
+
+**Reason**: Rejected specifically because of what this artefact is. Screenshots go into the dissertation and a second marker may open the app on Windows or Linux, where the same stack resolves to Segoe UI or DejaVu Sans — different metrics, so the tuned tracking values would be wrong and the display headings would not match the figures in the report. Inter Variable is self-hosted via `@fontsource-variable/inter` (no CDN request, consistent with the project's local-first framing), exposes a real `opsz` axis so `font-optical-sizing: auto` does something, and has a continuous weight axis so intermediate weights such as 620 are genuine instances rather than synthesised. Monospace deliberately stays on the system stack — code blocks need no brand identity and it avoids a second font download.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — Callout marker stripping walks the React tree instead of flattening to a string
+
+**Context**: `LessonRenderer` detects GitHub-style `> [!NOTE]` / `> [!WARNING]` blockquotes and renders them as `Callout` components. It did so by calling `extractText(children)` to flatten the subtree to a plain string, stripping the marker with a regex, and passing the resulting string as the callout body.
+
+**Reason**: Flattening discards the element tree, so any inline markdown inside a callout — bold, links, inline code — was silently rendered as literal text. Since lesson bodies are LLM-generated and the prompt encourages emphasis, this was actively lossy on real content. `extractText` is now used for *detection only*; rendering goes through `stripLeadingMarker(children)`, which walks the tree, replaces the marker on the first non-empty string leaf it reaches, and returns every other node untouched via `cloneElement`. A `done` flag stops the walk after the first substitution so a later occurrence of the literal text is never altered.
+
+**Status**: Active.

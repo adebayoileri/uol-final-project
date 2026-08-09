@@ -1,4 +1,4 @@
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+import { API_URL } from "./config";
 
 export interface CourseRequest {
   goal: string;
@@ -245,6 +245,67 @@ export function getAchievements(): Promise<AchievementResponse[]> {
 
 export function getMastery(courseId: string): Promise<MasteryResponse> {
   return request<MasteryResponse>(`/courses/${courseId}/mastery`)
+}
+
+export interface TimelineLesson {
+  id: string
+  title: string
+  duration_minutes: number
+  completed_at: string | null
+  order_index: number
+}
+
+export interface TimelineModule {
+  title: string
+  lessons: TimelineLesson[]
+}
+
+export interface TimelineResponse {
+  modules: TimelineModule[]
+  total_minutes: number
+  completed_minutes: number
+  streak: number
+}
+
+export function getTimeline(courseId: string): Promise<TimelineResponse> {
+  return request<TimelineResponse>(`/courses/${courseId}/timeline`)
+}
+
+export interface OptimalStudyTime {
+  start_hour: number
+  end_hour: number
+}
+
+export interface RecommendedFocus {
+  concept: string
+  mastery: number
+  rationale: string
+}
+
+export interface NextReview {
+  question_text: string
+  due: string
+}
+
+export interface InsightsResponse {
+  optimal_study_time: OptimalStudyTime | null
+  recommended_focus: RecommendedFocus | null
+  next_reviews: NextReview[]
+}
+
+export function getInsights(courseId: string): Promise<InsightsResponse> {
+  return request<InsightsResponse>(`/courses/${courseId}/insights`)
+}
+
+export interface ForecastDay {
+  date: string
+  count: number
+}
+
+export function getReviewForecast(courseId?: string, days = 28): Promise<ForecastDay[]> {
+  const params = new URLSearchParams({ days: String(days) })
+  if (courseId) params.set("course_id", courseId)
+  return request<ForecastDay[]>(`/review/forecast?${params}`)
 }
 
 export async function checkPronunciation(

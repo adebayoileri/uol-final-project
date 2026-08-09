@@ -398,6 +398,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@fontsource-variable/inter@npm:^5.3.0":
+  version: 5.3.0
+  resolution: "@fontsource-variable/inter@npm:5.3.0"
+  checksum: 99a65ae102ed1206f1dce61a2b34d5e92828683d99035b060209e4cefa48702a4aa72047d6105183bbfd40601a3c7b3b624758826e925d75b2fd0ec789ad99f2
+  languageName: node
+  linkType: hard
+
 "@isaacs/fs-minipass@npm:^4.0.0":
   version: 4.0.1
   resolution: "@isaacs/fs-minipass@npm:4.0.1"
@@ -1112,11 +1119,14 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "course-agent-frontend@workspace:."
   dependencies:
+    "@fontsource-variable/inter": ^5.3.0
     "@tailwindcss/vite": ^4.3.1
     "@types/prismjs": ^1.26.6
     "@types/react": ^18.3.12
     "@types/react-dom": ^18.3.1
     "@vitejs/plugin-react": ^4.3.3
+    lucide-react: ^1.31.0
+    motion: ^13.0.0
     prismjs: ^1.30.0
     react: ^18.3.1
     react-dom: ^18.3.1
@@ -1337,6 +1347,25 @@ __metadata:
     picomatch:
       optional: true
   checksum: bd537daa9d3cd53887eed35efa0eab2dbb1ca408790e10e024120e7a36c6e9ae2b33710cb8381e35def01bc9c1d7eaba746f886338413e68ff6ebaee07b9a6e8
+  languageName: node
+  linkType: hard
+
+"framer-motion@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "framer-motion@npm:13.0.0"
+  dependencies:
+    motion-dom: ^13.0.0
+    motion-utils: ^13.0.0
+    tslib: ^2.4.0
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 342d3aed0a1a4e21bd77ba0068e0620cd55b0f625dc3f02f111be87c54e713b90084d8fb769b55db74e49d48213033ec7b668503c0b1d511dcde5d266d33a45e
   languageName: node
   linkType: hard
 
@@ -1749,6 +1778,15 @@ __metadata:
   dependencies:
     yallist: ^3.0.2
   checksum: c154ae1cbb0c2206d1501a0e94df349653c92c8cbb25236d7e85190bcaf4567a03ac6eb43166fabfa36fd35623694da7233e88d9601fbf411a9a481d85dbd2cb
+  languageName: node
+  linkType: hard
+
+"lucide-react@npm:^1.31.0":
+  version: 1.31.0
+  resolution: "lucide-react@npm:1.31.0"
+  peerDependencies:
+    react: ^16.5.1 || ^17.0.0 || ^18.0.0 || ^19.0.0
+  checksum: 42632e854a9be2ed6cd7ce6167725c8293c7c613ffb9e547ec5ead03ae723c400c660c5cbd9b4597592f1aa84aee6c010de8c2fa677674365b389b92a631a7a7
   languageName: node
   linkType: hard
 
@@ -2350,6 +2388,40 @@ __metadata:
   dependencies:
     minipass: ^7.1.2
   checksum: a15e6f0128f514b7d41a1c68ce531155447f4669e32d279bba1c1c071ef6c2abd7e4d4579bb59ccc2ed1531346749665968fdd7be8d83eb6b6ae2fe1f3d370a7
+  languageName: node
+  linkType: hard
+
+"motion-dom@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "motion-dom@npm:13.0.0"
+  dependencies:
+    motion-utils: ^13.0.0
+  checksum: bb9a6eadd6c3477f960451a17f69f035d275576abb5d3ff9b7aad4e1ad8b354356fe7e297627e8362d59674774788d3b7813043fe31e848d59ab0e3ed538e4b3
+  languageName: node
+  linkType: hard
+
+"motion-utils@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "motion-utils@npm:13.0.0"
+  checksum: 0cb30b6d2b50b40fa8430a7c8fa3e75f93167135d48fa78a25deb3007810ec278176e51f3c984e99b9f30d81da7c27e2c07cfe4a028fa989118eb0a87f83bfdb
+  languageName: node
+  linkType: hard
+
+"motion@npm:^13.0.0":
+  version: 13.0.0
+  resolution: "motion@npm:13.0.0"
+  dependencies:
+    framer-motion: ^13.0.0
+    tslib: ^2.4.0
+  peerDependencies:
+    react: ^18.0.0 || ^19.0.0
+    react-dom: ^18.0.0 || ^19.0.0
+  peerDependenciesMeta:
+    react:
+      optional: true
+    react-dom:
+      optional: true
+  checksum: 2acc6cdae3c37b2b9d3521a9a12675b5d1e49e6449f26d3f9297e7249e69534dd993c0ab95ba509b5a82bd0d57797574dbcbeaf21ae0289048723205745602f6
   languageName: node
   linkType: hard
 

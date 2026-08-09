@@ -1,39 +1,17 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
-
-interface TimelineLesson {
-  id: string
-  title: string
-  duration_minutes: number
-  completed_at: string | null
-  order_index: number
-}
-
-interface TimelineModule {
-  title: string
-  lessons: TimelineLesson[]
-}
-
-interface TimelineData {
-  modules: TimelineModule[]
-  total_minutes: number
-  completed_minutes: number
-  streak: number
-}
+import { getTimeline, type TimelineResponse } from '../api'
 
 export default function CourseTimeline() {
   const { courseId } = useParams<{ courseId: string }>()
   const navigate = useNavigate()
-  const [data, setData] = useState<TimelineData | null>(null)
+  const [data, setData] = useState<TimelineResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!courseId) return
-    fetch(`${API_URL}/courses/${courseId}/timeline`)
-      .then((r) => r.json())
+    getTimeline(courseId)
       .then(setData)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
@@ -125,7 +103,7 @@ export default function CourseTimeline() {
                     </div>
 
                     {/* Lesson card */}
-                    <div className={`flex-1 pb-4 ${isLast ? '' : ''}`}>
+                    <div className="flex-1 pb-4">
                       <button
                         onClick={() => navigate(`/courses/${courseId}/lessons/${lesson.id}`)}
                         className="w-full text-left rounded-lg border border-[#2a2a3a] bg-[#111118] px-3 py-2.5 hover:border-violet-600 transition-colors"

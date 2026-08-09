@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getNextCard, getReviewQueue, answerQuestion, gradeCard, CardResponse, AnswerResponse } from '../api'
 import CodeBlock from '../components/CodeBlock'
@@ -92,17 +92,28 @@ export default function ReviewSession() {
     }
   }
 
+  // Keeps the keydown listener off `handleGrade` as a dep without going stale.
+  const handleGradeRef = useRef(handleGrade)
+  useLayoutEffect(() => {
+    handleGradeRef.current = handleGrade
+  })
+
   useEffect(() => {
     if (phase !== 'feedback') return
     function onKey(e: KeyboardEvent) {
+      // Don't hijack digits the user is typing into a field.
+      if (e.target instanceof HTMLElement && e.target.closest('input, textarea, [contenteditable]')) {
+        return
+      }
+      if (e.metaKey || e.ctrlKey || e.altKey) return
       const rating = parseInt(e.key, 10)
       if (rating >= 1 && rating <= 4 && !grading) {
-        handleGrade(rating)
+        handleGradeRef.current(rating)
       }
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [phase, grading, card])
+  }, [phase, grading])
 
   const backLink = courseId ? `/courses/${courseId}` : '/courses'
 

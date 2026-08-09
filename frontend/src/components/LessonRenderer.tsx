@@ -1,3 +1,4 @@
+import { Fragment, cloneElement, isValidElement } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkMath from 'remark-math'
@@ -20,8 +21,37 @@ function detectCalloutVariant(text: string): 'note' | 'warning' | null {
   return null
 }
 
-function stripCalloutPrefix(text: string): string {
-  return text.replace(/^\[!(?:NOTE|WARNING)\]\s*/i, '').trim()
+const MARKER_RE = /^\s*\[!(?:NOTE|WARNING)\]\s*/i
+
+/**
+ * Remove the `[!NOTE]` / `[!WARNING]` marker from the first string leaf while
+ * leaving the rest of the tree intact, so inline markdown (bold, links, code)
+ * inside a callout survives. Flattening to a plain string would destroy it.
+ */
+function stripLeadingMarker(node: React.ReactNode): React.ReactNode {
+  let done = false
+
+  function walk(n: React.ReactNode): React.ReactNode {
+    if (done) return n
+
+    if (typeof n === 'string') {
+      if (!n.trim()) return n
+      done = true
+      return n.replace(MARKER_RE, '')
+    }
+
+    if (Array.isArray(n)) return n.map((child, i) => <Fragment key={i}>{walk(child)}</Fragment>)
+
+    if (isValidElement(n)) {
+      const el = n as React.ReactElement<{ children?: React.ReactNode }>
+      if (el.props.children == null) return n
+      return cloneElement(el, { children: walk(el.props.children) })
+    }
+
+    return n
+  }
+
+  return walk(node)
 }
 
 export default function LessonRenderer({ content }: LessonRendererProps) {
@@ -59,8 +89,7 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
             const textContent = extractText(children)
             const variant = detectCalloutVariant(textContent)
             if (variant) {
-              const cleaned = stripCalloutPrefix(textContent)
-              return <Callout variant={variant}>{cleaned}</Callout>
+              return <Callout variant={variant}>{stripLeadingMarker(children)}</Callout>
             }
             return (
               <blockquote className="border-l-2 border-[#2a2a3a] pl-3 text-gray-400 italic my-3">
