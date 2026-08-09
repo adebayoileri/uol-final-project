@@ -19,6 +19,7 @@ export default function CourseHome() {
       .finally(() => setLoading(false))
   }, [courseId])
 
+  if (!courseId) return <p className="text-sm text-red-400">No course selected.</p>
   if (loading) return <p className="text-sm text-gray-400">Loading…</p>
   if (error) return <p className="text-sm text-red-400">{error}</p>
   if (!course) return null

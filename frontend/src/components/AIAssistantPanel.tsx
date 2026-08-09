@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useSSE } from '../hooks/useSSE'
+import { API_URL } from '../config'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -17,7 +18,7 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
 
-  const { isStreaming, start } = useSSE(`/api/lessons/${lessonId}/chat`, {
+  const { isStreaming, start } = useSSE(`${API_URL}/lessons/${lessonId}/chat`, {
     onChunk: (token) => {
       setStreamingContent((prev) => prev + token)
     },
@@ -44,8 +45,8 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
 
   // Load history on mount
   useEffect(() => {
-    fetch(`/api/lessons/${lessonId}/chat/history`)
-      .then((r) => r.json())
+    fetch(`${API_URL}/lessons/${lessonId}/chat/history`)
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: Array<{ role: string; content: string }>) => {
         setMessages(
           data

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { API_URL } from '../config'
 
 type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'done' | 'error'
 
@@ -34,14 +35,14 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
     setError(null)
 
     try {
-      const res = await fetch(`/api/lessons/${lessonId}/narration`, { method: 'POST' })
+      const res = await fetch(`${API_URL}/lessons/${lessonId}/narration`, { method: 'POST' })
       if (!res.ok) {
         const msg = await res.text()
         throw new Error(msg || `Server error ${res.status}`)
       }
       const { url } = (await res.json()) as { url: string }
 
-      const audio = new Audio(`/api${url}`)
+      const audio = new Audio(`${API_URL}${url}`)
       audio.playbackRate = speed
       audioRef.current = audio
 

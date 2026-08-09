@@ -1,28 +1,5 @@
 import { useEffect, useState } from 'react'
-
-interface OptimalStudyTime {
-  start_hour: number
-  end_hour: number
-}
-
-interface RecommendedFocus {
-  concept: string
-  mastery: number
-  rationale: string
-}
-
-interface NextReview {
-  question_text: string
-  due: string
-}
-
-interface InsightsData {
-  optimal_study_time: OptimalStudyTime | null
-  recommended_focus: RecommendedFocus | null
-  next_reviews: NextReview[]
-}
-
-const API_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
+import { getInsights, type InsightsResponse } from '../api'
 
 function fmtHour(h: number) {
   const period = h < 12 ? 'am' : 'pm'
@@ -48,15 +25,25 @@ interface InsightsPanelProps {
 }
 
 export default function InsightsPanel({ courseId }: InsightsPanelProps) {
-  const [data, setData] = useState<InsightsData | null>(null)
+  const [data, setData] = useState<InsightsResponse | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch(`${API_URL}/courses/${courseId}/insights`)
-      .then((r) => r.json())
-      .then(setData)
-      .catch(() => setData(null))
-      .finally(() => setLoading(false))
+    let cancelled = false
+    setLoading(true)
+    getInsights(courseId)
+      .then((d) => {
+        if (!cancelled) setData(d)
+      })
+      .catch(() => {
+        if (!cancelled) setData(null)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
   }, [courseId])
 
   if (loading) return null

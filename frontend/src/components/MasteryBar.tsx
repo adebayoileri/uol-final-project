@@ -11,7 +11,14 @@ export default function MasteryBar({ name, mastery }: MasteryBarProps) {
         <span className="text-gray-400 truncate max-w-[70%]">{name}</span>
         <span className="text-violet-400 font-mono tabular-nums">{pct}%</span>
       </div>
-      <div className="h-1.5 bg-[#1a1a24] rounded-full overflow-hidden">
+      <div
+        className="h-1.5 bg-[#1a1a24] rounded-full overflow-hidden"
+        role="progressbar"
+        aria-valuenow={pct}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-label={`${name} mastery`}
+      >
         <div
           className="h-full bg-violet-600 rounded-full transition-all duration-500"
           style={{ width: `${pct}%` }}
