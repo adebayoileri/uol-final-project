@@ -269,3 +269,64 @@ def test_queue_counts_scoped_and_mixed(client, db_session):
     assert data["due_now"] == 1
     assert data["due_today"] == 2   # -1h and +3h both fall within today's remaining hours
     assert data["due_this_week"] == 3  # -1h, +3h, +50h all within 7 days
+
+
+# ---------------------------------------------------------------------------
+# GET /review/forecast
+# ---------------------------------------------------------------------------
+
+def test_forecast_returns_one_row_per_day(client):
+    resp = client.get("/review/forecast?days=7")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert len(body) == 7
+    assert all(set(row) == {"date", "count"} for row in body)
+
+
+def test_forecast_dates_are_consecutive_and_sorted(client):
+    body = client.get("/review/forecast?days=5").json()
+    dates = [datetime.fromisoformat(row["date"]).date() for row in body]
+    assert dates == sorted(dates)
+    assert dates[0] == datetime.now(timezone.utc).date()
+    for earlier, later in zip(dates, dates[1:]):
+        assert (later - earlier).days == 1
+
+
+def test_forecast_is_all_zero_with_no_cards(client):
+    body = client.get("/review/forecast?days=14").json()
+    assert sum(row["count"] for row in body) == 0
+
+
+def test_forecast_counts_a_future_card_on_its_due_day(client, db_session):
+    _seed_card(db_session, due_offset_hours=48)
+    body = client.get("/review/forecast?days=14").json()
+    assert sum(row["count"] for row in body) == 1
+    hit = next(row for row in body if row["count"] == 1)
+    expected = (datetime.now(timezone.utc) + timedelta(hours=48)).date().isoformat()
+    assert hit["date"] == expected
+
+
+def test_forecast_folds_overdue_cards_into_today(client, db_session):
+    _seed_card(db_session, due_offset_hours=-72)
+    body = client.get("/review/forecast?days=14").json()
+    today = datetime.now(timezone.utc).date().isoformat()
+    assert body[0]["date"] == today
+    assert body[0]["count"] == 1
+
+
+def test_forecast_excludes_cards_beyond_the_horizon(client, db_session):
+    _seed_card(db_session, due_offset_hours=24 * 40)
+    body = client.get("/review/forecast?days=7").json()
+    assert sum(row["count"] for row in body) == 0
+
+
+def test_forecast_scoped_to_course(client, db_session):
+    _seed_card(db_session, due_offset_hours=24, course_id="cid-a")
+    _seed_card(db_session, due_offset_hours=24, course_id="cid-b")
+    body = client.get("/review/forecast?course_id=cid-a&days=14").json()
+    assert sum(row["count"] for row in body) == 1
+
+
+def test_forecast_rejects_out_of_range_days(client):
+    assert client.get("/review/forecast?days=0").status_code == 422
+    assert client.get("/review/forecast?days=91").status_code == 422
