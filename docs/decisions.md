@@ -467,3 +467,50 @@ main: processing 'samples/jfk.wav' (176000 samples, 11.0 sec), 4 threads, 1 proc
 **Reason**: Flattening discards the element tree, so any inline markdown inside a callout — bold, links, inline code — was silently rendered as literal text. Since lesson bodies are LLM-generated and the prompt encourages emphasis, this was actively lossy on real content. `extractText` is now used for *detection only*; rendering goes through `stripLeadingMarker(children)`, which walks the tree, replaces the marker on the first non-empty string leaf it reaches, and returns every other node untouched via `cloneElement`. A `done` flag stops the walk after the first substitution so a later occurrence of the literal text is never altered.
 
 **Status**: Active.
+
+----
+
+## 2026-08-09 — Spring parameters expressed as damping ratio and response, not mass/stiffness/damping
+
+**Context**: The redesign needed a motion vocabulary that could be applied consistently across ~20 components without each one inventing its own timing.
+
+**Alternatives considered**:
+- CSS transitions and `@keyframes` throughout — rejected for anything a user can interrupt. A CSS transition animates from wherever it was declared to start, cannot be grabbed and redirected mid-flight, and produces a visible jump when a new transition replaces a running one.
+- Raw physics parameters (mass/stiffness/damping) — rejected as unusable for design intent. Nothing about `stiffness: 210` communicates how the motion will feel, so values get copied around and drift.
+
+**Reason**: Apple replaced the physics triplet with two designer-facing parameters — damping ratio (how much it overshoots) and response (how quickly it reaches the target) — and Motion's `bounce` + `duration` API maps onto those closely, with `bounce ≈ 1 − damping`. `src/motion/springs.ts` defines four named springs and the codebase uses nothing else. The rule that carries the most weight is that `bounce > 0` is only permitted where a gesture genuinely carried momentum or where the moment is a celebration: overshoot on a panel that merely faded in reads as noise, while overshoot on a review card thrown out by a rating reads as physical. Reduced motion is handled once at the root via `MotionConfig reducedMotion="user"` rather than per-component, so the behaviour cannot drift.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — Per-route container widths instead of one shared column
+
+**Context**: Every page — the lesson reader, the review card, and all the dashboards — rendered inside a single `max-w-3xl` (768px) column defined once in `App.tsx`. Only one responsive class existed in the entire codebase.
+
+**Reason**: These surfaces have opposite requirements. Long-form reading wants a measure of roughly 60–75 characters, so the lesson body is capped at 46rem; dashboards want to use the width for two columns and stat grids, so they go to 72rem; the review card wants to be narrow and focused. A `Container` component takes a `width` token and each route picks one. This is what makes the two-column dashboards from the target design possible at all — they cannot exist inside a 768px column.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — `GET /review/forecast` folds overdue cards into today and returns empty days explicitly
+
+**Context**: The review calendar needed per-day due counts. The existing `/review/queue` returns only three cumulative buckets (`due_now`, `due_today`, `due_this_week`).
+
+**Alternatives considered**:
+- Derive the calendar client-side from the three buckets — rejected outright. The buckets are cumulative and carry no per-day information, so any daily breakdown drawn from them would be invented. In a dissertation artefact that is fabricated data, not a rendering shortcut.
+
+**Reason**: The endpoint groups cards by due date over a bounded horizon. Two decisions inside it are worth recording. Overdue cards are attributed to today rather than to the past date they were scheduled for, because today is where the learner will actually encounter them and a backlog rendered in the past would be unreachable. Days with no cards are returned explicitly with `count: 0` rather than omitted, so the client renders exactly what it is given and never has to distinguish "no cards" from "no data". The frontend widget degrades to the three queue buckets if the endpoint returns 404, so an older backend loses the calendar but not the page.
+
+**Status**: Active.
+
+----
+
+## 2026-08-09 — Kept the mockups' visual density, rejected their navigation
+
+**Context**: The redesign was driven by a set of v0-generated mockups. Those mockups included a floating bottom pill navigation labelled Home / Timeline / Content / Review / Completion, and a sidebar panel listing the models in use (Llama 3.1, Whisper, Piper TTS, Sentence-T) with fixed role labels.
+
+**Reason**: The wide two-column layouts, icon-badge stat tiles, gradient display headings and calendar widget were adopted, because they are genuine improvements over a 768px single column. The bottom pill nav was not, because those five labels describe a linear walkthrough of the product rather than its actual information architecture — they are a presentation narrative, and shipping them would have made the navigation misrepresent the structure beneath it. The "Models in Use" panel was reinterpreted rather than copied: the panel *shape* (titled rows, tinted icon badges, right-aligned values) was reused for the learning-insights sidebar, but every row is bound to a real value from `/courses/{id}/insights`. Displaying a static list of model names dressed as live status would have been decorative fiction in a document that is meant to be evidence.
+
+**Status**: Active.
