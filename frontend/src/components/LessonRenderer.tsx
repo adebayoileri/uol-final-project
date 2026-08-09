@@ -56,7 +56,7 @@ function stripLeadingMarker(node: React.ReactNode): React.ReactNode {
 
 export default function LessonRenderer({ content }: LessonRendererProps) {
   return (
-    <div className="prose-lesson text-sm text-gray-300 leading-relaxed">
+    <div className="prose-lesson">
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeKatex]}
@@ -75,7 +75,7 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
             }
             return (
               <code
-                className="bg-[#1a1a24] text-violet-300 px-1 py-0.5 rounded text-xs font-mono"
+                className="bg-surface-raised text-brand-200 border-hairline rounded border px-1.5 py-0.5 font-mono text-[0.9em]"
                 {...props}
               >
                 {children}
@@ -92,7 +92,7 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
               return <Callout variant={variant}>{stripLeadingMarker(children)}</Callout>
             }
             return (
-              <blockquote className="border-l-2 border-[#2a2a3a] pl-3 text-gray-400 italic my-3">
+              <blockquote className="border-brand-500/40 text-fg-subtle my-4 border-l-2 pl-4 italic">
                 {children}
               </blockquote>
             )
@@ -101,8 +101,8 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
           // Tables
           table({ children }) {
             return (
-              <div className="overflow-x-auto my-4">
-                <table className="min-w-full border-collapse text-xs">
+              <div className="border-hairline my-5 overflow-x-auto rounded-md border">
+                <table className="text-caption min-w-full border-collapse">
                   {children}
                 </table>
               </div>
@@ -110,14 +110,14 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
           },
           th({ children }) {
             return (
-              <th className="border border-[#2a2a3a] bg-[#1a1a24] px-3 py-1.5 text-left text-gray-300 font-semibold">
+              <th className="border-hairline bg-surface-raised text-fg sticky top-0 border-b px-3 py-2 text-left font-semibold">
                 {children}
               </th>
             )
           },
           td({ children }) {
             return (
-              <td className="border border-[#2a2a3a] px-3 py-1.5 text-gray-400">
+              <td className="border-hairline text-fg-muted border-t px-3 py-2">
                 {children}
               </td>
             )
@@ -125,31 +125,31 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
 
           // Typography
           h1({ children }) {
-            return <h1 className="text-base font-bold text-white mt-5 mb-2">{children}</h1>
+            return <h1 className="text-title text-fg mt-8 mb-3">{children}</h1>
           },
           h2({ children }) {
-            return <h2 className="text-sm font-semibold text-white mt-4 mb-1.5">{children}</h2>
+            return <h2 className="text-headline text-fg mt-7 mb-2">{children}</h2>
           },
           h3({ children }) {
-            return <h3 className="text-sm font-medium text-gray-200 mt-3 mb-1">{children}</h3>
+            return <h3 className="text-body-lg text-fg mt-5 mb-1.5 font-semibold">{children}</h3>
           },
           p({ children }) {
-            return <p className="mb-3 text-gray-300">{children}</p>
+            return <p className="text-fg-muted mb-4">{children}</p>
           },
           ul({ children }) {
-            return <ul className="list-disc pl-5 mb-3 space-y-1 text-gray-300">{children}</ul>
+            return <ul className="text-fg-muted mb-4 list-disc space-y-1.5 pl-5">{children}</ul>
           },
           ol({ children }) {
-            return <ol className="list-decimal pl-5 mb-3 space-y-1 text-gray-300">{children}</ol>
+            return <ol className="text-fg-muted mb-4 list-decimal space-y-1.5 pl-5">{children}</ol>
           },
           li({ children }) {
-            return <li className="text-gray-300">{children}</li>
+            return <li className="text-fg-muted">{children}</li>
           },
           strong({ children }) {
-            return <strong className="font-semibold text-white">{children}</strong>
+            return <strong className="text-fg font-semibold">{children}</strong>
           },
           hr() {
-            return <hr className="border-[#2a2a3a] my-4" />
+            return <hr className="border-hairline my-6" />
           },
         }}
       >

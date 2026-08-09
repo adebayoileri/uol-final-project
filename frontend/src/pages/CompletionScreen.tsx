@@ -1,35 +1,62 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useCallback, useEffect, useState } from 'react'
+import { useParams } from 'react-router-dom'
+import { AnimatePresence, motion } from 'motion/react'
 import {
+  Award,
+  BookOpen,
+  Brain,
+  ChevronDown,
+  Download,
+  GraduationCap,
+  RotateCcw,
+  Trophy,
+} from 'lucide-react'
+import {
+  getAchievements,
   getCourse,
   getMastery,
-  getAchievements,
   getReviewQueue,
-  MasteryResponse,
-  AchievementResponse,
-  ReviewQueueResponse,
-  CourseResponse,
+  type AchievementResponse,
+  type CourseResponse,
+  type MasteryResponse,
+  type ReviewQueueResponse,
 } from '../api'
 import { API_URL } from '../config'
 import MasteryBar from '../components/MasteryBar'
 import AchievementCard from '../components/AchievementCard'
+import Confetti from '../components/review/Confetti'
+import {
+  Button,
+  ButtonLink,
+  Card,
+  DashboardSkeleton,
+  ErrorState,
+  IconBadge,
+  SectionHeading,
+  StatTile,
+  useToast,
+} from '../components/ui'
+import { listContainer, listItem, springMomentum, springSheet } from '../motion/springs'
+
+const MASTERY_PREVIEW = 6
 
 export default function CompletionScreen() {
   const { courseId } = useParams<{ courseId: string }>()
+  const toast = useToast()
 
   const [course, setCourse] = useState<CourseResponse | null>(null)
   const [mastery, setMastery] = useState<MasteryResponse | null>(null)
   const [achievements, setAchievements] = useState<AchievementResponse[]>([])
   const [queue, setQueue] = useState<ReviewQueueResponse | null>(null)
   const [loading, setLoading] = useState(true)
-  // Gates the render. A failed certificate download must NOT wipe the screen,
-  // so it reports through `downloadError` instead.
   const [error, setError] = useState<string | null>(null)
-  const [downloadError, setDownloadError] = useState<string | null>(null)
   const [downloading, setDownloading] = useState(false)
+  const [showAllMastery, setShowAllMastery] = useState(false)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!courseId) return
+    setLoading(true)
+    setError(null)
     Promise.all([
       getCourse(courseId),
       getMastery(courseId),
@@ -46,10 +73,11 @@ export default function CompletionScreen() {
       .finally(() => setLoading(false))
   }, [courseId])
 
+  useEffect(load, [load])
+
   async function handleDownload() {
     if (!courseId) return
     setDownloading(true)
-    setDownloadError(null)
     try {
       const res = await fetch(`${API_URL}/courses/${courseId}/certificate`)
       if (!res.ok) {
@@ -63,102 +91,137 @@ export default function CompletionScreen() {
       a.download = `certificate-${courseId}.pdf`
       a.click()
       URL.revokeObjectURL(url)
+      toast({ title: 'Certificate downloaded', tone: 'success' })
     } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : 'Download failed')
+      // Reported as a toast, never through the state that gates the render —
+      // a failed download must not wipe the celebration screen.
+      toast({
+        title: 'Certificate failed',
+        description: err instanceof Error ? err.message : undefined,
+        tone: 'danger',
+      })
     } finally {
       setDownloading(false)
     }
   }
 
-  if (loading) return <p className="text-sm text-gray-400">Loading…</p>
-  if (error) return <p className="text-sm text-red-400">{error}</p>
+  if (error) {
+    return (
+      <ErrorState
+        message={error}
+        onRetry={load}
+        backTo={`/courses/${courseId}`}
+        backLabel="Back to course"
+      />
+    )
+  }
+  if (loading) return <DashboardSkeleton tiles={3} />
   if (!course) return null
 
   const totalLessons = course.modules.reduce((sum, m) => sum + m.lessons.length, 0)
-  const unlockedAchievements = achievements.filter((a) => a.unlocked)
+  const unlocked = achievements.filter((a) => a.unlocked)
   const masteryPct = mastery ? Math.round(mastery.overall * 100) : 0
+  const concepts = mastery?.concepts ?? []
+  const visibleConcepts = showAllMastery ? concepts : concepts.slice(0, MASTERY_PREVIEW)
 
   return (
-    <div className="space-y-8">
-      {/* Celebration banner */}
-      <div className="rounded-xl border border-violet-700 bg-violet-900/20 p-6 text-center">
-        <p className="text-3xl mb-2">🎉</p>
-        <h1 className="text-2xl font-bold text-white mb-1">Course Complete!</h1>
-        <p className="text-sm text-gray-400">{course.title}</p>
-      </div>
+    <div className="space-y-10">
+      <Card padding="lg" elevation={2} className="relative overflow-hidden text-center">
+        <Confetti count={18} />
+        <motion.div
+          initial={{ scale: 0.6, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={springMomentum}
+          className="relative flex justify-center"
+        >
+          <IconBadge icon={Trophy} tone="success" size="xl" />
+        </motion.div>
+        <h1 className="text-display-lg from-fg via-fg to-brand-300 mt-6 bg-linear-to-br bg-clip-text text-balance text-transparent">
+          Course complete
+        </h1>
+        <p className="text-body-lg text-fg-muted mt-3">{course.title}</p>
+      </Card>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-4 text-center">
-          <p className="text-2xl font-bold text-white">{totalLessons}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Lessons</p>
-        </div>
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-4 text-center">
-          <p className="text-2xl font-bold text-violet-400">{masteryPct}%</p>
-          <p className="text-xs text-gray-500 mt-0.5">Mastery</p>
-        </div>
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-4 text-center">
-          <p className="text-2xl font-bold text-white">{queue?.total ?? 0}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Cards to review</p>
-        </div>
-      </div>
+      <motion.div
+        variants={listContainer}
+        initial="hidden"
+        animate="show"
+        className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+      >
+        {[
+          { icon: GraduationCap, label: 'Lessons completed', value: totalLessons, tone: 'success' as const },
+          { icon: Brain, label: 'Knowledge mastery', value: masteryPct, unit: '%', tone: 'brand' as const },
+          { icon: RotateCcw, label: 'Cards in rotation', value: queue?.total ?? 0, tone: 'info' as const },
+        ].map((t) => (
+          <motion.div key={t.label} variants={listItem}>
+            <StatTile {...t} countUp />
+          </motion.div>
+        ))}
+      </motion.div>
 
-      {/* Achievements */}
-      {unlockedAchievements.length > 0 && (
-        <section>
-          <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Achievements earned</h2>
-          <div className="space-y-2">
-            {unlockedAchievements.map((a) => (
+      {unlocked.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeading title="Achievements earned" count={unlocked.length} />
+          <div className="grid gap-3 sm:grid-cols-2">
+            {unlocked.map((a) => (
               <AchievementCard key={a.id} {...a} />
             ))}
           </div>
         </section>
       )}
 
-      {/* Mastery breakdown */}
-      {mastery && mastery.concepts.length > 0 && (
-        <section>
-          <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-3">Knowledge mastery</h2>
-          <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-4 space-y-3">
-            {mastery.concepts.slice(0, 10).map((c, i) => (
+      {concepts.length > 0 && (
+        <section className="space-y-4">
+          <SectionHeading
+            title="Knowledge mastery"
+            description="Derived from FSRS memory stability — 30 days of stability reads as full mastery."
+          />
+          <Card padding="lg" className="space-y-4">
+            {visibleConcepts.map((c, i) => (
               <MasteryBar key={i} name={c.name} mastery={c.mastery} />
             ))}
-          </div>
+            <AnimatePresence initial={false}>
+              {concepts.length > MASTERY_PREVIEW && (
+                <motion.div layout transition={springSheet}>
+                  <Button
+                    variant="link"
+                    size="sm"
+                    icon={ChevronDown}
+                    iconPosition="right"
+                    onClick={() => setShowAllMastery((s) => !s)}
+                    className={showAllMastery ? '[&_svg]:rotate-180 [&_svg]:transition-transform' : '[&_svg]:transition-transform'}
+                  >
+                    {showAllMastery
+                      ? 'Show fewer'
+                      : `Show all ${concepts.length} concepts`}
+                  </Button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </Card>
         </section>
       )}
 
-      {/* Actions — primary first, so visual hierarchy matches DOM order */}
-      <div className="flex flex-col gap-3">
-        <Link
-          to={`/courses/${courseId}/review`}
-          className="w-full rounded-lg bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-500 transition-colors text-center"
-        >
+      {/* Primary first: hierarchy and DOM order now agree. */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+        <ButtonLink to={`/courses/${courseId}/review`} size="lg" icon={RotateCcw}>
           Review cards
-        </Link>
-        <button
+        </ButtonLink>
+        <Button
+          variant="secondary"
+          size="lg"
+          icon={Download}
           onClick={handleDownload}
-          disabled={downloading}
-          className="w-full rounded-lg border border-violet-600 px-5 py-3 text-sm font-medium text-violet-400 hover:bg-violet-900/20 disabled:opacity-60 transition-colors"
+          loading={downloading}
         >
-          {downloading ? 'Generating PDF…' : 'Download Certificate'}
-        </button>
-        {downloadError && (
-          <p role="alert" className="text-sm text-red-400 text-center">
-            {downloadError}
-          </p>
-        )}
-        <Link
-          to={`/courses/${courseId}`}
-          className="w-full rounded-lg border border-[#2a2a3a] px-5 py-3 text-sm font-medium text-gray-400 hover:text-white hover:border-violet-600 transition-colors text-center"
-        >
+          Download certificate
+        </Button>
+        <ButtonLink to={`/courses/${courseId}`} variant="ghost" size="lg" icon={Award}>
           Back to course
-        </Link>
-        <Link
-          to="/"
-          className="w-full rounded-lg border border-[#2a2a3a] px-5 py-3 text-sm font-medium text-gray-400 hover:text-white hover:border-violet-600 transition-colors text-center"
-        >
+        </ButtonLink>
+        <ButtonLink to="/" variant="ghost" size="lg" icon={BookOpen}>
           Start a new course
-        </Link>
+        </ButtonLink>
       </div>
     </div>
   )
