@@ -77,6 +77,44 @@ def review_queue(
     )
 
 
+@router.get("/forecast")
+def review_forecast(
+    course_id: str | None = Query(default=None),
+    days: int = Query(default=28, ge=1, le=90),
+    db: Session = Depends(get_db),
+):
+    """Cards due per calendar day, for the review calendar.
+
+    Anything already overdue is folded into today, which is where the user
+    would actually see it. Days with no cards are returned with a count of 0 so
+    the client never has to infer a gap.
+    """
+    now = datetime.now(timezone.utc)
+    today = now.date()
+    horizon = (now + timedelta(days=days)).isoformat()
+
+    base = db.query(Card).filter(Card.due <= horizon)
+    if course_id is not None:
+        base = base.filter(Card.course_id == course_id)
+
+    counts: dict[str, int] = {
+        (today + timedelta(days=i)).isoformat(): 0 for i in range(days)
+    }
+
+    for (due,) in base.with_entities(Card.due).all():
+        if not due:
+            continue
+        try:
+            due_date = datetime.fromisoformat(due).date()
+        except ValueError:
+            continue
+        key = max(due_date, today).isoformat()
+        if key in counts:
+            counts[key] += 1
+
+    return [{"date": date, "count": count} for date, count in sorted(counts.items())]
+
+
 @router.post("/grade", response_model=GradeResponse)
 def grade_card(body: GradeRequest, db: Session = Depends(get_db)):
     card = db.get(Card, body.card_id)
