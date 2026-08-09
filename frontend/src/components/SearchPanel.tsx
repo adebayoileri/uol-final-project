@@ -1,12 +1,16 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { Search } from 'lucide-react'
 import { searchContent, type SearchResultItem } from '../api'
+import { Badge, Spinner } from './ui'
+import { cn } from '../lib/cn'
 
 interface Props {
   courseId?: string
+  className?: string
 }
 
-function SearchPanel({ courseId }: Props) {
+function SearchPanel({ courseId, className }: Props) {
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<SearchResultItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -34,21 +38,28 @@ function SearchPanel({ courseId }: Props) {
   }, [query, courseId])
 
   return (
-    <div className="mt-4">
+    <div className={cn('space-y-2', className)}>
       <div className="relative">
         <label htmlFor="content-search" className="sr-only">
           Search lessons and questions
         </label>
+        <Search
+          size={16}
+          className="text-fg-faint pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+          aria-hidden="true"
+        />
         <input
           id="content-search"
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search lessons and questions…"
-          className="block w-full rounded-lg border border-[#2a2a3a] bg-[#111118] px-4 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
+          className="border-border bg-surface-raised text-callout text-fg placeholder:text-fg-faint hover:border-border-strong focus:border-brand-500 block w-full rounded-md border py-2.5 pr-10 pl-9 transition-colors duration-[--duration-fast]"
         />
         {loading && (
-          <span className="absolute right-3 top-2 text-xs text-gray-500">Searching…</span>
+          <span className="absolute top-1/2 right-3 -translate-y-1/2">
+            <Spinner size="sm" className="text-fg-faint" />
+          </span>
         )}
       </div>
 
@@ -61,11 +72,11 @@ function SearchPanel({ courseId }: Props) {
       </p>
 
       {searched && results.length === 0 && !loading && (
-        <p className="mt-2 text-sm text-gray-500">No results.</p>
+        <p className="text-caption text-fg-subtle px-1">No matches.</p>
       )}
 
       {results.length > 0 && (
-        <ul className="mt-2 space-y-1">
+        <ul className="space-y-1.5">
           {results.map((r) => (
             <li key={r.content_id}>
               <Link
@@ -74,19 +85,19 @@ function SearchPanel({ courseId }: Props) {
                     ? `/courses/${r.course_id}/lessons/${r.lesson_id}`
                     : `/courses/${r.course_id}`
                 }
-                className="flex items-start gap-3 rounded-lg border border-[#2a2a3a] bg-[#111118] px-4 py-2.5 text-sm hover:bg-[#1a1a24]"
+                className="border-border bg-surface hover:border-border-strong hover:bg-surface-raised flex items-start gap-2.5 rounded-md border px-3 py-2.5 transition-colors"
               >
-                <span
-                  className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-xs font-medium ${
-                    r.content_type === 'lesson'
-                      ? 'bg-blue-900/50 text-blue-300'
-                      : 'bg-violet-900/50 text-violet-300'
-                  }`}
+                <Badge
+                  tone={r.content_type === 'lesson' ? 'info' : 'brand'}
+                  size="sm"
+                  className="mt-0.5 shrink-0"
                 >
                   {r.content_type === 'lesson' ? 'Lesson' : 'Question'}
+                </Badge>
+                <span className="text-caption text-fg-muted line-clamp-2 min-w-0 flex-1">
+                  {r.content_text}
                 </span>
-                <span className="text-gray-300 line-clamp-2">{r.content_text}</span>
-                <span className="ml-auto shrink-0 text-xs text-gray-600">
+                <span className="text-caption text-fg-faint shrink-0 tabular-nums">
                   {Math.round(r.score * 100)}%
                 </span>
               </Link>
