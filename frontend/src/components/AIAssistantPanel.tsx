@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion } from 'motion/react'
+import { Send, Sparkles } from 'lucide-react'
 import { useSSE } from '../hooks/useSSE'
 import { API_URL } from '../config'
+import { Button, Card, Textarea } from './ui'
+import { springDefault } from '../motion/springs'
+import { cn } from '../lib/cn'
 
 interface Message {
   role: 'user' | 'assistant'
@@ -17,11 +22,10 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
   const [streamingContent, setStreamingContent] = useState('')
   const [error, setError] = useState<string | null>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const streamingContentRef = useRef('')
 
   const { isStreaming, start } = useSSE(`${API_URL}/lessons/${lessonId}/chat`, {
-    onChunk: (token) => {
-      setStreamingContent((prev) => prev + token)
-    },
+    onChunk: (token) => setStreamingContent((prev) => prev + token),
     onDone: () => {
       setMessages((prev) => {
         const last = prev[prev.length - 1]
@@ -37,13 +41,10 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
     onError: (msg) => setError(msg),
   })
 
-  // Ref for accumulation inside closure
-  const streamingContentRef = useRef('')
   useEffect(() => {
     streamingContentRef.current = streamingContent
   }, [streamingContent])
 
-  // Load history on mount
   useEffect(() => {
     fetch(`${API_URL}/lessons/${lessonId}/chat/history`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
@@ -54,10 +55,11 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
             .map((m) => ({ role: m.role as 'user' | 'assistant', content: m.content })),
         )
       })
-      .catch(() => {/* non-critical */})
+      .catch(() => {
+        /* history is best-effort */
+      })
   }, [lessonId])
 
-  // Scroll to bottom on new messages
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, streamingContent])
@@ -70,8 +72,11 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
     setStreamingContent('')
     streamingContentRef.current = ''
 
-    const userMsg: Message = { role: 'user', content: text }
-    setMessages((prev) => [...prev, userMsg, { role: 'assistant', content: '' }])
+    setMessages((prev) => [
+      ...prev,
+      { role: 'user', content: text },
+      { role: 'assistant', content: '' },
+    ])
 
     await start({
       message: text,
@@ -80,16 +85,18 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
   }
 
   return (
-    <div className="flex flex-col rounded-lg border border-[#2a2a3a] bg-[#111118] overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-[#2a2a3a]">
-        <span className="text-xs font-medium text-violet-400">AI Tutor</span>
+    <Card padding="none" className="flex flex-col overflow-hidden">
+      <div className="border-hairline flex items-center gap-2 border-b px-4 py-3">
+        <Sparkles size={14} className="text-brand-300" aria-hidden="true" />
+        <h2 className="text-callout text-fg font-medium">AI tutor</h2>
         {isStreaming && (
-          <span className="flex gap-0.5">
+          <span className="ml-auto flex gap-1" aria-label="Thinking">
             {[0, 1, 2].map((i) => (
-              <span
+              <motion.span
                 key={i}
-                className="w-1 h-1 rounded-full bg-violet-400 animate-bounce"
-                style={{ animationDelay: `${i * 0.15}s` }}
+                className="bg-brand-400 size-1.5 rounded-full"
+                animate={{ y: [0, -3, 0] }}
+                transition={{ duration: 0.6, repeat: Infinity, delay: i * 0.15 }}
               />
             ))}
           </span>
@@ -98,45 +105,54 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
 
       <div
         ref={listRef}
-        className="flex-1 overflow-y-auto p-3 space-y-3 min-h-[200px] max-h-[360px]"
+        className="max-h-96 min-h-52 flex-1 space-y-3 overflow-y-auto p-4"
+        aria-live="polite"
       >
         {messages.length === 0 && !isStreaming && (
-          <p className="text-xs text-gray-500 text-center pt-4">
-            Ask anything about this lesson…
+          <p className="text-caption text-fg-subtle pt-6 text-center text-balance">
+            Ask anything about this lesson — the tutor answers from the lesson content.
           </p>
         )}
 
         {messages.map((msg, i) => {
           const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
           const content = isLastAssistant && isStreaming ? streamingContent : msg.content
+          const isUser = msg.role === 'user'
 
           return (
-            <div
+            <motion.div
               key={i}
-              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
+              initial={{ opacity: 0, y: 6, x: isUser ? 8 : -8 }}
+              animate={{ opacity: 1, y: 0, x: 0 }}
+              transition={springDefault}
+              className={cn('flex', isUser ? 'justify-end' : 'justify-start')}
             >
               <div
-                className={`max-w-[85%] rounded-lg px-3 py-2 text-xs leading-relaxed ${
-                  msg.role === 'user'
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-[#1a1a24] text-gray-300 border border-[#2a2a3a]'
-                }`}
+                className={cn(
+                  'text-callout max-w-[88%] rounded-lg px-3 py-2 leading-relaxed',
+                  isUser
+                    ? 'bg-brand-500 text-white'
+                    : 'bg-surface-raised border-hairline text-fg-muted border',
+                )}
               >
-                {content || (msg.role === 'assistant' && isStreaming ? (
-                  <span className="text-gray-500">Thinking…</span>
-                ) : null)}
+                {content ||
+                  (msg.role === 'assistant' && isStreaming ? (
+                    <span className="text-fg-faint">Thinking…</span>
+                  ) : null)}
               </div>
-            </div>
+            </motion.div>
           )
         })}
       </div>
 
       {error && (
-        <p className="text-xs text-red-400 px-3 pb-1">{error}</p>
+        <p role="alert" className="text-caption text-danger px-4 pb-2">
+          {error}
+        </p>
       )}
 
-      <div className="flex gap-2 p-2 border-t border-[#2a2a3a]">
-        <textarea
+      <div className="border-hairline flex items-end gap-2 border-t p-3">
+        <Textarea
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {
@@ -146,18 +162,22 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
             }
           }}
           rows={2}
-          placeholder="Ask a question… (Enter to send)"
+          placeholder="Ask a question…"
+          aria-label="Ask the tutor a question"
           disabled={isStreaming}
-          className="flex-1 resize-none rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-2.5 py-1.5 text-xs text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none disabled:opacity-60"
+          className="resize-none py-2 text-callout"
         />
-        <button
+        <Button
+          size="sm"
+          icon={Send}
           onClick={handleSend}
           disabled={isStreaming || !input.trim()}
-          className="self-end rounded-lg bg-violet-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-violet-500 disabled:opacity-50"
+          aria-label="Send"
+          className="shrink-0"
         >
-          Send
-        </button>
+          <span className="sr-only">Send</span>
+        </Button>
       </div>
-    </div>
+    </Card>
   )
 }

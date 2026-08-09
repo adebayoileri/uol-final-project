@@ -1,140 +1,47 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Clock, Target } from 'lucide-react'
 import {
-  getLessonDetail,
-  generateQuestions,
-  answerQuestion,
   completeLesson,
+  generateQuestions,
   getCourse,
-  LessonDetailResponse,
-  QuestionResponse,
-  AnswerResponse,
+  getLessonDetail,
+  type LessonDetailResponse,
 } from '../api'
-import CodeBlock from '../components/CodeBlock'
-import LessonRenderer from '../components/LessonRenderer'
-import Callout from '../components/Callout'
 import AudioPlayer from '../components/AudioPlayer'
 import AIAssistantPanel from '../components/AIAssistantPanel'
-
-type Phase = 'answering' | 'feedback'
-
-// ── Structured lesson body ────────────────────────────────────────────────────
-
-interface KeyConcept { name: string; definition: string; example?: string }
-
-interface StructuredLesson {
-  key_concepts?: KeyConcept[]
-  worked_example?: string
-  common_pitfalls?: string[]
-  practice_prompts?: string[]
-  description?: string
-}
-
-function LessonBody({ description }: { description: string }) {
-  // Try to parse Phase-A JSON
-  if (description.trimStart().startsWith('{')) {
-    try {
-      const data: StructuredLesson = JSON.parse(description)
-      const concepts = data.key_concepts ?? []
-      const workedExample = data.worked_example ?? null
-      const pitfalls = data.common_pitfalls ?? []
-      const plainDesc = data.description ?? null
-
-      return (
-        <div className="mt-4 space-y-4">
-          {plainDesc && (
-            <p className="text-sm text-gray-400 leading-relaxed">{plainDesc}</p>
-          )}
-
-          {concepts.length > 0 && (
-            <section>
-              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Key concepts</h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {concepts.map((c) => (
-                  <div
-                    key={c.name}
-                    className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3"
-                  >
-                    <p className="text-sm font-semibold text-violet-300 mb-0.5">{c.name}</p>
-                    <p className="text-xs text-gray-400 mb-1">{c.definition}</p>
-                    {c.example && (
-                      <p className="text-xs text-gray-500 font-mono bg-[#1a1a24] rounded px-2 py-1">
-                        {c.example}
-                      </p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </section>
-          )}
-
-          {workedExample && (
-            <section>
-              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Worked example</h3>
-              <pre className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 text-xs text-gray-300 whitespace-pre-wrap font-mono">
-                {workedExample}
-              </pre>
-            </section>
-          )}
-
-          {pitfalls.length > 0 && (
-            <section>
-              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Common pitfalls</h3>
-              <div className="space-y-1">
-                {pitfalls.map((p, i) => (
-                  <Callout key={i} variant="warning">{p}</Callout>
-                ))}
-              </div>
-            </section>
-          )}
-        </div>
-      )
-    } catch {
-      // Fallback to markdown renderer if JSON parse fails
-    }
-  }
-
-  // Plain text or markdown fallback
-  return (
-    <div className="mt-4">
-      <LessonRenderer content={description} />
-    </div>
-  )
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
+import LessonBody from '../components/lesson/LessonBody'
+import LessonCompleteBar from '../components/lesson/LessonCompleteBar'
+import QuestionDeck, { GenerateQuestionsPrompt } from '../components/lesson/QuestionDeck'
+import { Badge, Card, ErrorState, IconBadge, LessonSkeleton, useToast } from '../components/ui'
 
 export default function LessonView() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>()
   const navigate = useNavigate()
+  const toast = useToast()
 
   const [lesson, setLesson] = useState<LessonDetailResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [generating, setGenerating] = useState(false)
+  const [completing, setCompleting] = useState(false)
 
-  const [questionsOpen, setQuestionsOpen] = useState(false)
   const [qIndex, setQIndex] = useState<number>(() => {
     const saved = lessonId ? localStorage.getItem(`lesson-${lessonId}-qi`) : null
     return saved ? parseInt(saved, 10) : 0
   })
 
-  const [generating, setGenerating] = useState(false)
-  const [completing, setCompleting] = useState(false)
-
-  const [phase, setPhase] = useState<Phase>('answering')
-  const [userAnswer, setUserAnswer] = useState('')
-  const [checking, setChecking] = useState(false)
-  const [feedback, setFeedback] = useState<AnswerResponse | null>(null)
-
   const fetchLesson = useCallback(() => {
-    if (!courseId || !lessonId) return
-    getLessonDetail(courseId, lessonId)
+    if (!courseId || !lessonId) return Promise.resolve()
+    return getLessonDetail(courseId, lessonId)
       .then(setLesson)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
   }, [courseId, lessonId])
 
-  useEffect(() => { fetchLesson() }, [fetchLesson])
+  useEffect(() => {
+    fetchLesson()
+  }, [fetchLesson])
 
   useEffect(() => {
     if (lessonId) localStorage.setItem(`lesson-${lessonId}-qi`, String(qIndex))
@@ -145,44 +52,20 @@ export default function LessonView() {
     setGenerating(true)
     try {
       await generateQuestions(lessonId)
-      setLoading(true)
-      fetchLesson()
-      setQuestionsOpen(true)
+      // Deliberately does NOT set `loading` — that would unmount the page and
+      // throw away the reader's scroll position.
+      await fetchLesson()
+      setQIndex(0)
+      toast({ title: 'Questions ready', tone: 'success' })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Generation failed.')
+      toast({
+        title: 'Could not generate questions',
+        description: err instanceof Error ? err.message : undefined,
+        tone: 'danger',
+      })
     } finally {
       setGenerating(false)
     }
-  }
-
-  async function handleCheckAnswer(q: QuestionResponse) {
-    if (!userAnswer.trim()) return
-    setChecking(true)
-    try {
-      const result = await answerQuestion(q.id, userAnswer)
-      setFeedback(result)
-      setPhase('feedback')
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Check failed.')
-    } finally {
-      setChecking(false)
-    }
-  }
-
-  function handleNext(questions: QuestionResponse[]) {
-    const next = qIndex + 1 < questions.length ? qIndex + 1 : qIndex
-    setQIndex(next)
-    setPhase('answering')
-    setUserAnswer('')
-    setFeedback(null)
-  }
-
-  function handlePrev() {
-    const prev = qIndex - 1 >= 0 ? qIndex - 1 : 0
-    setQIndex(prev)
-    setPhase('answering')
-    setUserAnswer('')
-    setFeedback(null)
   }
 
   async function handleComplete() {
@@ -190,203 +73,119 @@ export default function LessonView() {
     setCompleting(true)
     try {
       await completeLesson(lessonId)
-      // Check if this was the last incomplete lesson → go to CompletionScreen
       const updatedCourse = await getCourse(courseId)
       const allDone = updatedCourse.modules.every((m) =>
-        m.lessons.every((l) => l.completed_at !== null)
+        m.lessons.every((l) => l.completed_at !== null),
       )
       navigate(allDone ? `/courses/${courseId}/complete` : `/courses/${courseId}`)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not mark complete.')
+      toast({
+        title: 'Could not mark complete',
+        description: err instanceof Error ? err.message : undefined,
+        tone: 'danger',
+      })
     } finally {
       setCompleting(false)
     }
   }
 
-  if (loading) return <p className="text-sm text-gray-400">Loading lesson…</p>
-  if (error) return <p className="text-sm text-red-400">{error}</p>
+  if (error) {
+    return (
+      <ErrorState
+        message={error}
+        onRetry={() => {
+          setError(null)
+          setLoading(true)
+          fetchLesson()
+        }}
+        backTo={`/courses/${courseId}`}
+        backLabel="Back to course"
+      />
+    )
+  }
+  if (loading) return <LessonSkeleton />
   if (!lesson) return null
 
-  const questions = lesson.questions
-  const currentQ = questions[qIndex] ?? null
-
-  const verdictStyle = feedback
-    ? feedback.verdict === 'correct'
-      ? 'bg-green-900/40 border-green-800 text-green-300'
-      : feedback.score >= 0.5
-      ? 'bg-yellow-900/40 border-yellow-800 text-yellow-300'
-      : 'bg-red-900/40 border-red-800 text-red-300'
-    : ''
-
   return (
-    <div>
-      <div className="mb-4">
-        <Link to={`/courses/${courseId}`} className="text-xs text-gray-500 hover:text-gray-400">
-          ← Back to course
-        </Link>
-      </div>
-
-      <div className="flex items-start justify-between gap-3 mb-1">
-        <h1 className="text-xl font-bold text-white">{lesson.title}</h1>
-        <span className="shrink-0 text-xs bg-[#1a1a24] border border-[#2a2a3a] text-gray-400 px-2 py-1 rounded">
-          ~{lesson.duration_minutes}m
-        </span>
-      </div>
-
-      <div className="mt-3">
-        <AudioPlayer lessonId={lesson.id} />
-      </div>
-
-      {lesson.objectives.length > 0 && (
-        <div className="mt-4 rounded-lg border border-[#2a2a3a] bg-[#111118] p-4">
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Objectives</p>
-          <ul className="space-y-1">
-            {lesson.objectives.map((obj) => (
-              <li key={obj.id} className="flex gap-2 text-sm text-gray-300">
-                <span className="text-violet-400 mt-0.5">•</span>
-                {obj.description}
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {lesson.description && <LessonBody description={lesson.description} />}
-
-      <div className="mt-6">
-        {questions.length === 0 ? (
-          <button
-            onClick={handleGenerate}
-            disabled={generating}
-            className="rounded-lg border border-[#2a2a3a] bg-[#111118] px-4 py-2.5 text-sm text-gray-300 hover:border-violet-600 hover:text-white disabled:opacity-60 transition-colors"
-          >
-            {generating ? 'Generating…' : 'Generate questions'}
-          </button>
-        ) : (
-          <div>
-            <button
-              onClick={() => setQuestionsOpen((o) => !o)}
-              className="flex items-center gap-2 text-sm text-gray-300 hover:text-white"
-            >
-              <svg
-                className={`w-4 h-4 transition-transform ${questionsOpen ? 'rotate-90' : ''}`}
-                fill="none" viewBox="0 0 24 24" stroke="currentColor"
+    <>
+      <div className="grid gap-10 xl:grid-cols-[minmax(0,46rem)_20rem] xl:justify-center">
+        <article className="min-w-0 space-y-10 pb-28">
+          <header className="space-y-4">
+            <nav aria-label="Breadcrumb">
+              <Link
+                to={`/courses/${courseId}`}
+                className="text-callout text-fg-subtle hover:text-fg -ml-2 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 transition-colors"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-              Study questions ({questions.length})
-            </button>
+                <ArrowLeft size={16} aria-hidden="true" />
+                Back to course
+              </Link>
+            </nav>
 
-            {questionsOpen && currentQ && (
-              <div className="mt-4 rounded-lg border border-[#2a2a3a] bg-[#111118] p-5">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex gap-1">
-                    <button
-                      onClick={handlePrev}
-                      disabled={qIndex === 0}
-                      className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30"
-                    >
-                      ← Prev
-                    </button>
-                    <button
-                      onClick={() => handleNext(questions)}
-                      disabled={qIndex >= questions.length - 1}
-                      className="px-2 py-1 text-xs text-gray-400 hover:text-white disabled:opacity-30"
-                    >
-                      Next →
-                    </button>
-                  </div>
-                  <span className="text-xs text-gray-500">
-                    {qIndex + 1} / {questions.length}
-                  </span>
-                </div>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <h1 className="text-display-lg text-fg text-balance">{lesson.title}</h1>
+              <Badge icon={Clock} className="mt-2 shrink-0">
+                {lesson.duration_minutes} min
+              </Badge>
+            </div>
 
-                {currentQ.question_type === 'fill_blank' && currentQ.code_snippet && (
-                  <div className="mb-3">
-                    <CodeBlock code={currentQ.code_snippet} language="python" />
-                  </div>
-                )}
+            <AudioPlayer lessonId={lesson.id} />
+          </header>
 
-                <p className="text-sm text-white mb-4">{currentQ.text}</p>
+          {lesson.objectives.length > 0 && (
+            <Card padding="lg">
+              <h2 className="text-headline text-fg mb-3 flex items-center gap-2.5">
+                <IconBadge icon={Target} tone="brand" size="sm" />
+                What you'll be able to do
+              </h2>
+              <ul className="space-y-2">
+                {lesson.objectives.map((obj) => (
+                  <li key={obj.id} className="text-body text-fg-muted flex gap-2.5">
+                    <span className="bg-brand-400 mt-2.5 size-1.5 shrink-0 rounded-full" />
+                    {obj.description}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
 
-                {phase === 'answering' && (
-                  <>
-                    {currentQ.question_type === 'fill_blank' ? (
-                      <input
-                        type="text"
-                        value={userAnswer}
-                        onChange={(e) => setUserAnswer(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleCheckAnswer(currentQ)}
-                        placeholder="Your answer…"
-                        className="w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none font-mono"
-                      />
-                    ) : (
-                      <textarea
-                        value={userAnswer}
-                        onChange={(e) => setUserAnswer(e.target.value)}
-                        rows={3}
-                        placeholder="Your answer…"
-                        className="w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none resize-none"
-                      />
-                    )}
-                    <button
-                      onClick={() => handleCheckAnswer(currentQ)}
-                      disabled={checking || !userAnswer.trim()}
-                      className="mt-3 rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-60"
-                    >
-                      {checking ? 'Checking…' : 'Check answer'}
-                    </button>
-                  </>
-                )}
+          {lesson.description && <LessonBody description={lesson.description} />}
 
-                {phase === 'feedback' && feedback && (
-                  <div className="space-y-3">
-                    <div className={`rounded-lg border p-3 text-sm ${verdictStyle}`}>
-                      <div className="font-medium">
-                        {feedback.verdict === 'correct' ? 'Correct' : `Score: ${Math.round(feedback.score * 100)}%`}
-                      </div>
-                      {feedback.explanation && (
-                        <p className="mt-1 text-xs opacity-80">{feedback.explanation}</p>
-                      )}
-                    </div>
-                    <div className="text-sm text-gray-400">
-                      <span className="text-xs text-gray-500 uppercase tracking-wider">Reference</span>
-                      <p className="mt-1">{currentQ.reference_answer}</p>
-                    </div>
-                    <button
-                      onClick={() => handleNext(questions)}
-                      className="text-sm text-violet-400 hover:text-violet-300"
-                    >
-                      {qIndex < questions.length - 1 ? 'Next question →' : 'Done'}
-                    </button>
-                  </div>
-                )}
-              </div>
+          <section className="space-y-4">
+            <h2 className="text-headline text-fg">
+              Practice
+              {lesson.questions.length > 0 && (
+                <span className="text-fg-faint ml-2 tabular-nums">{lesson.questions.length}</span>
+              )}
+            </h2>
+            {lesson.questions.length === 0 ? (
+              <GenerateQuestionsPrompt onGenerate={handleGenerate} generating={generating} />
+            ) : (
+              <QuestionDeck
+                questions={lesson.questions}
+                index={Math.min(qIndex, lesson.questions.length - 1)}
+                onIndexChange={setQIndex}
+                onError={(message) => toast({ title: message, tone: 'danger' })}
+              />
             )}
+          </section>
+
+          {/* Below xl the tutor sits inline, as it did before. */}
+          <div className="xl:hidden">
+            <AIAssistantPanel lessonId={lesson.id} />
           </div>
-        )}
+        </article>
+
+        <aside className="hidden xl:sticky xl:top-20 xl:block xl:self-start">
+          <AIAssistantPanel lessonId={lesson.id} />
+        </aside>
       </div>
 
-      <div className="mt-8">
-        <AIAssistantPanel lessonId={lesson.id} />
-      </div>
-
-      <div className="mt-10">
-        {lesson.completed_at ? (
-          <div className="flex items-center gap-2 text-sm text-green-400">
-            <span>✓</span>
-            <span>Completed</span>
-          </div>
-        ) : (
-          <button
-            onClick={handleComplete}
-            disabled={completing}
-            className="w-full rounded-lg bg-violet-600 px-5 py-3 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-60"
-          >
-            {completing ? 'Saving…' : 'Mark complete'}
-          </button>
-        )}
-      </div>
-    </div>
+      <LessonCompleteBar
+        title={lesson.title}
+        completed={lesson.completed_at !== null}
+        completing={completing}
+        onComplete={handleComplete}
+      />
+    </>
   )
 }
