@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any
 
 import httpx
@@ -12,6 +13,11 @@ logger = logging.getLogger(__name__)
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "120"))
+
+_PROMPTS_DIR = Path(__file__).parent.parent / "app" / "prompts"
+
+# Load prompt template once at import time
+_COURSE_PROMPT_TEMPLATE: str = (_PROMPTS_DIR / "course_structure.txt").read_text()
 
 _DURATION_GUIDANCE = {
     "short_term": {
@@ -29,45 +35,14 @@ _DURATION_GUIDANCE = {
 
 def _build_user_prompt(goal: str, duration: str, category: str) -> str:
     guidance = _DURATION_GUIDANCE[duration]
-    return f"""Create a complete course plan for the following learning goal.
-
-Goal: {goal}
-Category: {category}
-Duration: {guidance["label"]} ({duration.replace("_", " ")})
-
-Requirements:
-- The course runs for {guidance["label"]}.
-- Include {guidance["module_count"]} modules.
-- Each module must have {guidance["lessons_per_module"]} lessons.
-- Each lesson must have 2 to 4 learning objectives.
-- lesson duration_minutes must be a realistic integer (e.g., 30, 45, 60).
-
-Output ONLY this JSON structure — no other text:
-
-{{
-  "title": "Course title here",
-  "description": "One or two sentence course overview.",
-  "modules": [
-    {{
-      "title": "Module title",
-      "description": "What this module covers.",
-      "lessons": [
-        {{
-          "title": "Lesson title",
-          "description": "What this lesson covers.",
-          "duration_minutes": 45,
-          "objectives": [
-            "Objective one.",
-            "Objective two.",
-            "Objective three."
-          ]
-        }}
-      ]
-    }}
-  ]
-}}
-
-Remember: output ONLY the JSON. No markdown. No extra text."""
+    return _COURSE_PROMPT_TEMPLATE.format(
+        goal=goal,
+        category=category,
+        duration_label=guidance["label"],
+        duration=duration.replace("_", " "),
+        module_count=guidance["module_count"],
+        lessons_per_module=guidance["lessons_per_module"],
+    )
 
 
 def _call_ollama(prompt: str) -> str:

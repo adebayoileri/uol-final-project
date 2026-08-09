@@ -220,6 +220,33 @@ export function searchContent(
   return request<SearchResultItem[]>(`/search?${params}`)
 }
 
+export interface AchievementResponse {
+  id: string
+  title: string
+  description: string
+  icon: string
+  unlocked: boolean
+  unlocked_at: string | null
+}
+
+export interface ConceptMastery {
+  name: string
+  mastery: number
+}
+
+export interface MasteryResponse {
+  concepts: ConceptMastery[]
+  overall: number
+}
+
+export function getAchievements(): Promise<AchievementResponse[]> {
+  return request<AchievementResponse[]>('/achievements')
+}
+
+export function getMastery(courseId: string): Promise<MasteryResponse> {
+  return request<MasteryResponse>(`/courses/${courseId}/mastery`)
+}
+
 export async function checkPronunciation(
   audio: Blob,
   expectedText: string,

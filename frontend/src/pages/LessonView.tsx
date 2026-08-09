@@ -5,13 +5,104 @@ import {
   generateQuestions,
   answerQuestion,
   completeLesson,
+  getCourse,
   LessonDetailResponse,
   QuestionResponse,
   AnswerResponse,
 } from '../api'
 import CodeBlock from '../components/CodeBlock'
+import LessonRenderer from '../components/LessonRenderer'
+import Callout from '../components/Callout'
+import AudioPlayer from '../components/AudioPlayer'
+import AIAssistantPanel from '../components/AIAssistantPanel'
 
 type Phase = 'answering' | 'feedback'
+
+// ── Structured lesson body ────────────────────────────────────────────────────
+
+interface KeyConcept { name: string; definition: string; example?: string }
+
+interface StructuredLesson {
+  key_concepts?: KeyConcept[]
+  worked_example?: string
+  common_pitfalls?: string[]
+  practice_prompts?: string[]
+  description?: string
+}
+
+function LessonBody({ description }: { description: string }) {
+  // Try to parse Phase-A JSON
+  if (description.trimStart().startsWith('{')) {
+    try {
+      const data: StructuredLesson = JSON.parse(description)
+      const concepts = data.key_concepts ?? []
+      const workedExample = data.worked_example ?? null
+      const pitfalls = data.common_pitfalls ?? []
+      const plainDesc = data.description ?? null
+
+      return (
+        <div className="mt-4 space-y-4">
+          {plainDesc && (
+            <p className="text-sm text-gray-400 leading-relaxed">{plainDesc}</p>
+          )}
+
+          {concepts.length > 0 && (
+            <section>
+              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Key concepts</h3>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {concepts.map((c) => (
+                  <div
+                    key={c.name}
+                    className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3"
+                  >
+                    <p className="text-sm font-semibold text-violet-300 mb-0.5">{c.name}</p>
+                    <p className="text-xs text-gray-400 mb-1">{c.definition}</p>
+                    {c.example && (
+                      <p className="text-xs text-gray-500 font-mono bg-[#1a1a24] rounded px-2 py-1">
+                        {c.example}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
+
+          {workedExample && (
+            <section>
+              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Worked example</h3>
+              <pre className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 text-xs text-gray-300 whitespace-pre-wrap font-mono">
+                {workedExample}
+              </pre>
+            </section>
+          )}
+
+          {pitfalls.length > 0 && (
+            <section>
+              <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2">Common pitfalls</h3>
+              <div className="space-y-1">
+                {pitfalls.map((p, i) => (
+                  <Callout key={i} variant="warning">{p}</Callout>
+                ))}
+              </div>
+            </section>
+          )}
+        </div>
+      )
+    } catch {
+      // Fallback to markdown renderer if JSON parse fails
+    }
+  }
+
+  // Plain text or markdown fallback
+  return (
+    <div className="mt-4">
+      <LessonRenderer content={description} />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export default function LessonView() {
   const { courseId, lessonId } = useParams<{ courseId: string; lessonId: string }>()
@@ -95,11 +186,16 @@ export default function LessonView() {
   }
 
   async function handleComplete() {
-    if (!lessonId) return
+    if (!lessonId || !courseId) return
     setCompleting(true)
     try {
       await completeLesson(lessonId)
-      navigate(`/courses/${courseId}`)
+      // Check if this was the last incomplete lesson → go to CompletionScreen
+      const updatedCourse = await getCourse(courseId)
+      const allDone = updatedCourse.modules.every((m) =>
+        m.lessons.every((l) => l.completed_at !== null)
+      )
+      navigate(allDone ? `/courses/${courseId}/complete` : `/courses/${courseId}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not mark complete.')
     } finally {
@@ -137,6 +233,10 @@ export default function LessonView() {
         </span>
       </div>
 
+      <div className="mt-3">
+        <AudioPlayer lessonId={lesson.id} />
+      </div>
+
       {lesson.objectives.length > 0 && (
         <div className="mt-4 rounded-lg border border-[#2a2a3a] bg-[#111118] p-4">
           <p className="text-xs text-gray-500 uppercase tracking-wider mb-2">Objectives</p>
@@ -151,11 +251,7 @@ export default function LessonView() {
         </div>
       )}
 
-      {lesson.description && (
-        <p className="mt-4 text-sm text-gray-400 whitespace-pre-wrap leading-relaxed">
-          {lesson.description}
-        </p>
-      )}
+      {lesson.description && <LessonBody description={lesson.description} />}
 
       <div className="mt-6">
         {questions.length === 0 ? (
@@ -269,6 +365,10 @@ export default function LessonView() {
             )}
           </div>
         )}
+      </div>
+
+      <div className="mt-8">
+        <AIAssistantPanel lessonId={lesson.id} />
       </div>
 
       <div className="mt-10">

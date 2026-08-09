@@ -5,15 +5,17 @@ call Ollama (no format=json — that mode forces a single object and breaks arra
 extract the JSON array from raw text, validate, retry once on bad JSON.
 """
 
-import json
+import json  # still used in _parse_response
 import logging
 import os
 import re
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
 from agents.main import SYSTEM_PROMPT
+from app.services.content_parser import parse_lesson_body
 
 if TYPE_CHECKING:
     from app.models import Lesson
@@ -24,6 +26,11 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 OLLAMA_TIMEOUT = float(os.environ.get("OLLAMA_TIMEOUT_SECONDS", "120"))
 
+_PROMPTS_DIR = Path(__file__).parent.parent / "prompts"
+
+_OPEN_TEMPLATE: str = (_PROMPTS_DIR / "question_open.txt").read_text()
+_FILL_BLANK_TEMPLATE: str = (_PROMPTS_DIR / "question_fill_blank.txt").read_text()
+
 
 def _is_python_lesson(lesson: "Lesson") -> bool:
     try:
@@ -32,63 +39,44 @@ def _is_python_lesson(lesson: "Lesson") -> bool:
         return False
 
 
-def _build_python_prompt(lesson: "Lesson") -> str:
+def _build_context_blocks(lesson: "Lesson") -> dict[str, str]:
+    """Build template substitution dict from lesson, enriched with parsed structured content."""
     objectives_block = "\n".join(
         f"- {obj.description}" for obj in lesson.objectives
     ) or "- (no objectives listed)"
 
-    return f"""Generate exactly 4 questions for the following Python lesson: 2 open-ended conceptual questions and 2 fill-the-blank code exercises.
+    parsed = parse_lesson_body(lesson.description)
 
-Lesson title: {lesson.title}
-Lesson description: {lesson.description}
-Learning objectives:
-{objectives_block}
+    key_concepts_block = ""
+    if parsed["key_concepts"]:
+        lines = ["Key concepts:"] + [
+            f"- {c['name']}: {c['definition']}" for c in parsed["key_concepts"][:4]
+        ]
+        key_concepts_block = "\n".join(lines)
 
-For each open-ended question use this format:
-  {{"question_type": "open", "question": "Question text.", "reference_answer": "1-3 sentence answer."}}
+    practice_prompts_block = ""
+    if parsed["practice_prompts"]:
+        lines = ["Practice prompt seeds (use as inspiration, not verbatim):"] + [
+            f"- {p}" for p in parsed["practice_prompts"][:3]
+        ]
+        practice_prompts_block = "\n".join(lines)
 
-For each fill-the-blank exercise use this format:
-  {{"question_type": "fill_blank", "question": "Short instruction describing what to complete.", "code_snippet": "Python code block with exactly ONE line replaced by    # BLANK", "reference_answer": "The exact line that replaces # BLANK, with correct indentation."}}
+    return {
+        "lesson_title": lesson.title,
+        "lesson_description": lesson.description if len(lesson.description) < 500
+                              else lesson.description[:500] + "…",
+        "objectives_block": objectives_block,
+        "key_concepts_block": key_concepts_block,
+        "practice_prompts_block": practice_prompts_block,
+    }
 
-Rules for fill-the-blank:
-- The # BLANK marker replaces exactly one meaningful line of code (not a comment or blank line)
-- The reference_answer must be the complete line that goes in place of # BLANK (include indentation)
-- Keep snippets short (4-8 lines total). No execution required.
-- Do NOT include triple backticks in the code_snippet value
 
-Output ONLY this JSON array — no other text:
-[
-  {{"question_type": "open", "question": "...", "reference_answer": "..."}},
-  {{"question_type": "fill_blank", "question": "...", "code_snippet": "...", "reference_answer": "..."}},
-  {{"question_type": "open", "question": "...", "reference_answer": "..."}},
-  {{"question_type": "fill_blank", "question": "...", "code_snippet": "...", "reference_answer": "..."}}
-]
-
-Remember: output ONLY the JSON array. No markdown. No prose."""
+def _build_python_prompt(lesson: "Lesson") -> str:
+    return _FILL_BLANK_TEMPLATE.format(**_build_context_blocks(lesson))
 
 
 def _build_prompt(lesson: "Lesson") -> str:
-    objectives_block = "\n".join(
-        f"- {obj.description}" for obj in lesson.objectives
-    ) or "- (no objectives listed)"
-
-    return f"""Generate 3 to 5 open-ended questions for the following lesson.
-For each question, provide a concise reference answer of 1 to 3 sentences.
-
-Lesson title: {lesson.title}
-Lesson description: {lesson.description}
-Learning objectives:
-{objectives_block}
-
-Output ONLY this JSON array — no other text:
-[
-  {{
-    "question": "Question text here.",
-    "reference_answer": "Ideal answer here, 1 to 3 sentences."
-  }}
-]
-
-Remember: output ONLY the JSON array. No markdown. No prose."""
+    return _OPEN_TEMPLATE.format(**_build_context_blocks(lesson))
 
 
 def _call_ollama(prompt: str) -> str:
@@ -109,8 +97,6 @@ def _parse_response(raw: str) -> list[dict[str, Any]]:
     raw = re.sub(r"```(?:json)?\s*", "", raw).strip()
 
     # Extract the first complete JSON array from the text.
-    # The model often prefixes with prose ("Here are the questions:"), so we
-    # scan for the opening '[' and walk to its matching ']'.
     start = raw.find("[")
     if start != -1:
         depth = 0

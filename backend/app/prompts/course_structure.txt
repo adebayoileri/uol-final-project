@@ -1,0 +1,61 @@
+Create a complete course plan for the following learning goal.
+
+Goal: {goal}
+Category: {category}
+Duration: {duration_label} ({duration})
+
+Requirements:
+- The course runs for {duration_label}.
+- Include {module_count} modules.
+- Each module must have {lessons_per_module} lessons.
+- Each lesson must have:
+  - A title and a description of 2-3 substantive sentences explaining what the learner will understand after studying it (not a summary — teach it).
+  - duration_minutes: a realistic integer (30, 45, or 60).
+  - objectives: 3-5 concrete, measurable learning outcomes.
+  - key_concepts: a list of 2-4 objects, each with "name" (the term), "definition" (1-2 sentences), and "example" (a concrete real-world example).
+  - worked_example: a step-by-step walkthrough of one realistic scenario that applies the lesson concepts. At least 3 steps.
+  - common_pitfalls: 2-3 strings describing typical mistakes learners make with this topic.
+  - practice_prompts: 2-3 strings that could serve as question stems for self-testing. These should be specific and tied to the lesson content.
+
+Output ONLY this JSON structure — no other text:
+
+{{
+  "title": "Course title here",
+  "description": "One or two sentence course overview.",
+  "modules": [
+    {{
+      "title": "Module title",
+      "description": "What this module covers.",
+      "lessons": [
+        {{
+          "title": "Lesson title",
+          "description": "2-3 substantive sentences about what this lesson teaches, not a mere summary.",
+          "duration_minutes": 45,
+          "objectives": [
+            "By the end of this lesson, learners will be able to ...",
+            "Learners will understand ...",
+            "Learners will apply ..."
+          ],
+          "key_concepts": [
+            {{
+              "name": "Concept name",
+              "definition": "Clear definition in 1-2 sentences.",
+              "example": "A concrete real-world example showing the concept in action."
+            }}
+          ],
+          "worked_example": "Step 1: ... Step 2: ... Step 3: ...",
+          "common_pitfalls": [
+            "Common mistake learners make.",
+            "Another frequent misunderstanding."
+          ],
+          "practice_prompts": [
+            "What happens when you ...?",
+            "How would you use ... to ...?"
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
+
+Remember: output ONLY the JSON. No markdown. No extra text. Every lesson must include all fields: title, description, duration_minutes, objectives, key_concepts, worked_example, common_pitfalls, practice_prompts.

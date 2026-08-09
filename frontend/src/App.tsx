@@ -5,6 +5,8 @@ import CourseHome from './pages/CourseHome'
 import LessonView from './pages/LessonView'
 import ReviewSession from './pages/ReviewSession'
 import PronunciationDrill from './pages/PronunciationDrill'
+import CompletionScreen from './pages/CompletionScreen'
+import CourseTimeline from './pages/CourseTimeline'
 
 function App() {
   return (
@@ -34,6 +36,8 @@ function App() {
           <Route path="/courses/:courseId/review" element={<ReviewSession />} />
           <Route path="/review" element={<ReviewSession />} />
           <Route path="/pronunciation" element={<PronunciationDrill />} />
+          <Route path="/courses/:courseId/complete" element={<CompletionScreen />} />
+          <Route path="/courses/:courseId/timeline" element={<CourseTimeline />} />
         </Routes>
       </main>
     </div>

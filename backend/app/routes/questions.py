@@ -8,6 +8,8 @@ from app.database import get_db
 from app.models import Question
 from app.schemas import AnswerRequest, AnswerResponse
 from app.services.answer_evaluator import evaluate_answer, evaluate_code_answer
+from app.achievements.engine import evaluate_achievements
+from app.services.events import QUESTION_ANSWERED, record_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/questions", tags=["questions"])
@@ -36,4 +38,6 @@ def answer_question(
             reference_answer=question.reference_answer,
             reference_embedding=ref_emb,
         )
+    record_event(db, QUESTION_ANSWERED, {"verdict": result.get("verdict"), "score": result.get("score")})
+    evaluate_achievements(db)
     return AnswerResponse(**result)

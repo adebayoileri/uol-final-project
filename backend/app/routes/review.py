@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Card, Review
 from app.schemas import CardResponse, GradeRequest, GradeResponse, ReviewQueueResponse
+from app.achievements.engine import evaluate_achievements
+from app.services.events import REVIEW_GRADED, record_event
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/review", tags=["review"])
@@ -99,6 +101,8 @@ def grade_card(body: GradeRequest, db: Session = Depends(get_db)):
     ))
     db.commit()
     db.refresh(card)
+    record_event(db, REVIEW_GRADED, {"rating": body.rating, "card_id": body.card_id})
+    evaluate_achievements(db)
 
     return GradeResponse(
         card_id=card.id,

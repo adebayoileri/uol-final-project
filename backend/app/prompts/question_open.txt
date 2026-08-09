@@ -1,0 +1,22 @@
+Generate 3 to 5 open-ended questions for the following lesson.
+For each question, provide a concise reference answer of 1 to 3 sentences.
+
+Lesson title: {lesson_title}
+Lesson description: {lesson_description}
+Learning objectives:
+{objectives_block}
+{key_concepts_block}
+{practice_prompts_block}
+
+Each question should test conceptual understanding, not just recall. Vary question types:
+some "explain why", some "how would you", some "what would happen if".
+
+Output ONLY this JSON array — no other text:
+[
+  {{
+    "question": "Question text here.",
+    "reference_answer": "Ideal answer here, 1 to 3 sentences."
+  }}
+]
+
+Remember: output ONLY the JSON array. No markdown. No prose.

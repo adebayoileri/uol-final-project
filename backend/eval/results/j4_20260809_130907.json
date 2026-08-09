@@ -1,0 +1,442 @@
+{
+  "timestamp": "2026-08-09T13:09:07.822954",
+  "config": {
+    "n_cards": 100,
+    "days": 30,
+    "rating": "Good (3) always"
+  },
+  "daily_stats": [
+    {
+      "day": 0,
+      "due_today": 100,
+      "reviewed_today": 100,
+      "avg_stability": 2.31,
+      "state_distribution": {
+        "0": 0,
+        "1": 100,
+        "2": 0,
+        "3": 0
+      },
+      "estimated_retention": 1.0
+    },
+    {
+      "day": 1,
+      "due_today": 100,
+      "reviewed_today": 100,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 1.0
+    },
+    {
+      "day": 2,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.986
+    },
+    {
+      "day": 3,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.972
+    },
+    {
+      "day": 4,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.958
+    },
+    {
+      "day": 5,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.944
+    },
+    {
+      "day": 6,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.931
+    },
+    {
+      "day": 7,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 7.32,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.917
+    },
+    {
+      "day": 8,
+      "due_today": 100,
+      "reviewed_today": 100,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 1.0
+    },
+    {
+      "day": 9,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.997
+    },
+    {
+      "day": 10,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.993
+    },
+    {
+      "day": 11,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.99
+    },
+    {
+      "day": 12,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.987
+    },
+    {
+      "day": 13,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.984
+    },
+    {
+      "day": 14,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.98
+    },
+    {
+      "day": 15,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.977
+    },
+    {
+      "day": 16,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.974
+    },
+    {
+      "day": 17,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.971
+    },
+    {
+      "day": 18,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.967
+    },
+    {
+      "day": 19,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.964
+    },
+    {
+      "day": 20,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.961
+    },
+    {
+      "day": 21,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.958
+    },
+    {
+      "day": 22,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.955
+    },
+    {
+      "day": 23,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.951
+    },
+    {
+      "day": 24,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.948
+    },
+    {
+      "day": 25,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.945
+    },
+    {
+      "day": 26,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.942
+    },
+    {
+      "day": 27,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.939
+    },
+    {
+      "day": 28,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.936
+    },
+    {
+      "day": 29,
+      "due_today": 0,
+      "reviewed_today": 0,
+      "avg_stability": 31.68,
+      "state_distribution": {
+        "0": 0,
+        "1": 0,
+        "2": 100,
+        "3": 0
+      },
+      "estimated_retention": 0.933
+    }
+  ],
+  "final_summary": {
+    "mean_stability": 31.68,
+    "median_stability": 31.679226101746565,
+    "state_distribution": {
+      "0": 0,
+      "1": 0,
+      "2": 100,
+      "3": 0
+    },
+    "all_review_intervals_sample": [
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31,
+      2.31
+    ]
+  }
+}

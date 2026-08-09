@@ -14,6 +14,7 @@ dependencies = [
     "fsrs>=6.3,<7",
     "python-multipart>=0.0.12",
     "piper-tts>=1.4,<2",
+    "weasyprint>=62",
 ]
 
 [dependency-groups]
