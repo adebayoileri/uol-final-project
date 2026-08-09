@@ -11,6 +11,8 @@ from app.models import Card as DBCard, Lesson, Module, Question
 from app.schemas import QuestionResponse
 from app.services.answer_evaluator import embed
 from app.services.embeddings import index_question
+from app.achievements.engine import evaluate_achievements
+from app.services.events import LESSON_COMPLETED, record_event
 from app.services.question_generator import generate_questions
 
 logger = logging.getLogger(__name__)
@@ -102,4 +104,6 @@ def complete_lesson(lesson_id: str, db: Session = Depends(get_db)):
     if lesson.completed_at is None:
         lesson.completed_at = datetime.now(timezone.utc)
         db.commit()
+        record_event(db, LESSON_COMPLETED, {"lesson_id": lesson_id})
+        evaluate_achievements(db)
     return Response(status_code=204)

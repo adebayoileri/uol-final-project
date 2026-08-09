@@ -1,5 +1,34 @@
 # Decisions Log
 
+## 2026-08-09 — Prompts as `.txt` files, not inline Python strings
+
+**Context**: Phase A required enriching the course and question generation prompts. Inline strings embedded in `course_agent.py` and `question_generator.py` were 40–60-line blocks that became hard to read, hard to test independently, and required a Python redeploy to change.
+
+**Alternatives considered**:
+- Keep inline — rejected. Unreadable in diff. Mixing template content with Python logic makes both harder to change.
+- Jinja2 templates — rejected. Jinja2 is the right tool if templates have conditional blocks or loops inside the template itself. These templates are flat (no logic — just `{variable}` substitution), so `str.format(**kwargs)` is sufficient and introduces no new dependency.
+- `.json` or `.yaml` config — rejected. A prompt is prose, not structured data. `.txt` is the right file type for prose.
+
+**Reason**: Flat `.txt` files in `backend/app/prompts/` loaded once at module level with `pathlib.Path.read_text()` and substituted with `.format(**kwargs)`. This makes prompt changes reviewable as standalone diffs, keeps Python files focused on logic, and enables A/B testing a prompt by swapping a file without touching Python. The directory path is resolved relative to `__file__` so it works regardless of working directory.
+
+**Status**: Active.
+
+---
+
+## 2026-08-09 — `content_parser` as a separate module (never raises)
+
+**Context**: LLM lesson output in Phase A now contains optional structured fields (`key_concepts`, `worked_example`, etc.). Two callers need to extract these: `question_generator` (to build richer prompts) and potentially the frontend renderer. Inline JSON parsing in each caller leads to duplicated try/except boilerplate.
+
+**Alternatives considered**:
+- Pydantic model for lesson content — considered. Cleaner types, auto-validation. Rejected for now: Pydantic raises `ValidationError` on bad data, which means every caller has to handle the exception. The invariant we want is "extraction never crashes the request"; `parse_lesson_body` expresses that explicitly and is easier to test with bad/partial fixtures.
+- Validate at course-generation time (before write to DB) — rejected. The course agent already has its own `_validate_structure` check on the top-level shape. Adding deep field validation there would couple the parser to the generation path and make retries more aggressive. Better to validate lazily at read time.
+
+**Reason**: `parse_lesson_body(raw: str) -> dict` always returns a dict with known keys (empty defaults for missing fields). Callers get type-safe access without try/except. `is_structured: bool` lets callers branch on whether the description was rich JSON or legacy plain text without re-parsing. Nine unit tests cover: full input, missing fields, malformed JSON, plain text, empty string, non-list `key_concepts`, empty concept names, wrong-type pitfalls, and whitespace stripping.
+
+**Status**: Active.
+
+---
+
 ## 2026-07-19 — Frontend: no shared data-fetching library; local state only
 
 **Context**: R5 adds 5 pages. Choosing whether to introduce TanStack Query, SWR, or

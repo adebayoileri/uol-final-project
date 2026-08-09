@@ -1,6 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import Response
 from sqlalchemy.orm import Session, selectinload
 
 from agents.course_agent import generate_course
@@ -13,8 +14,12 @@ from app.schemas import (
     LessonDetailResponse,
     ProgressSummary,
 )
+from app.services.certificates import generate_certificate
 from app.services.embeddings import index_lesson
+from app.services.events import COURSE_GENERATED, record_event
+from app.services.mastery import course_mastery
 from app.services.progress import course_progress
+from app.services.streaks import current_streak
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/courses", tags=["courses"])
@@ -94,6 +99,7 @@ def create_course(body: CourseRequest, db: Session = Depends(get_db)) -> CourseR
         for lesson in module.lessons:
             index_lesson(lesson, db)
 
+    record_event(db, COURSE_GENERATED, {"course_id": course.id, "category": course.category})
     return CourseResponse.model_validate(course)
 
 
@@ -112,6 +118,66 @@ def get_course(course_id: str, db: Session = Depends(get_db)) -> CourseResponse:
     if not course:
         raise HTTPException(status_code=404, detail="Course not found.")
     return CourseResponse.model_validate(course)
+
+
+@router.get("/{course_id}/mastery")
+def get_mastery(course_id: str, db: Session = Depends(get_db)):
+    course = db.query(Course).filter(Course.id == course_id).first()
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+    return course_mastery(course_id, db)
+
+
+@router.get("/{course_id}/timeline")
+def get_timeline(course_id: str, db: Session = Depends(get_db)):
+    course = (
+        db.query(Course)
+        .options(
+            selectinload(Course.modules)
+            .selectinload(Module.lessons)
+        )
+        .filter(Course.id == course_id)
+        .first()
+    )
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found.")
+
+    modules_out = []
+    total_minutes = 0
+    completed_minutes = 0
+
+    for module in sorted(course.modules, key=lambda m: m.order_index):
+        lessons_out = []
+        for lesson in sorted(module.lessons, key=lambda l: l.order_index):
+            dur = lesson.duration_minutes or 0
+            total_minutes += dur
+            if lesson.completed_at:
+                completed_minutes += dur
+            lessons_out.append({
+                "id": lesson.id,
+                "title": lesson.title,
+                "duration_minutes": dur,
+                "completed_at": lesson.completed_at.isoformat() if lesson.completed_at else None,
+                "order_index": lesson.order_index,
+            })
+        modules_out.append({"title": module.title, "lessons": lessons_out})
+
+    return {
+        "modules": modules_out,
+        "total_minutes": total_minutes,
+        "completed_minutes": completed_minutes,
+        "streak": current_streak(db),
+    }
+
+
+@router.get("/{course_id}/certificate")
+def get_certificate(course_id: str, db: Session = Depends(get_db)):
+    pdf_bytes = generate_certificate(course_id, db)
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="certificate-{course_id}.pdf"'},
+    )
 
 
 @router.get("/{course_id}/lessons/{lesson_id}", response_model=LessonDetailResponse)

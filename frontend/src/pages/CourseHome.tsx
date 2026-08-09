@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { getCourse, getReviewQueue, CourseResponse, ReviewQueueResponse } from '../api'
+import InsightsPanel from '../components/InsightsPanel'
 
 export default function CourseHome() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -61,6 +62,14 @@ export default function CourseHome() {
             <span>All lessons complete — keep reviewing to reinforce your knowledge.</span>
           </div>
         )}
+        <div className="flex gap-2 flex-wrap">
+          <Link
+            to={`/courses/${courseId}/timeline`}
+            className="rounded-lg px-4 py-2 text-sm font-medium bg-[#1a1a24] border border-[#2a2a3a] text-gray-400 hover:border-violet-600 hover:text-white"
+          >
+            Timeline
+          </Link>
+        </div>
         <div>
           <button
             onClick={() => dueNow > 0 && navigate(`/courses/${courseId}/review`)}
@@ -108,6 +117,8 @@ export default function CourseHome() {
           </div>
         ))}
       </div>
+
+      <InsightsPanel courseId={courseId} />
     </div>
   )
 }
