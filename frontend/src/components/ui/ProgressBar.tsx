@@ -24,6 +24,8 @@ interface ProgressBarProps {
   size?: keyof typeof SIZES
   tone?: Tone
   label?: string
+  /** Keep `label` for assistive tech but don't render the row above the bar. */
+  hideLabel?: boolean
   showValue?: boolean
   className?: string
 }
@@ -33,6 +35,7 @@ export default function ProgressBar({
   size = 'sm',
   tone = 'brand',
   label,
+  hideLabel = false,
   showValue = false,
   className,
 }: ProgressBarProps) {
@@ -42,9 +45,13 @@ export default function ProgressBar({
 
   return (
     <div className={cn('w-full', className)}>
-      {(label || showValue) && (
+      {((label && !hideLabel) || showValue) && (
         <div className="mb-1.5 flex items-baseline justify-between gap-3">
-          {label && <span className="text-caption text-fg-muted truncate">{label}</span>}
+          {label && !hideLabel ? (
+            <span className="text-caption text-fg-muted truncate">{label}</span>
+          ) : (
+            <span />
+          )}
           {showValue && (
             <span className="text-caption text-fg-subtle tabular-nums shrink-0">{pct}%</span>
           )}
