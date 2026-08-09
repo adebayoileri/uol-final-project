@@ -1,6 +1,92 @@
-import { useEffect, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
-import { getTimeline, type TimelineResponse } from '../api'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useNavigate, useParams } from 'react-router-dom'
+import { motion, useInView } from 'motion/react'
+import { Check, Clock, Flame, Play, Target } from 'lucide-react'
+import { getTimeline, type TimelineLesson, type TimelineResponse } from '../api'
+import {
+  Card,
+  DashboardSkeleton,
+  ErrorState,
+  PageHeader,
+  ProgressBar,
+  StatTile,
+} from '../components/ui'
+import { springDefault } from '../motion/springs'
+import { cn } from '../lib/cn'
+
+type NodeStatus = 'done' | 'current' | 'upcoming'
+
+function TimelineNode({
+  lesson,
+  status,
+  isLast,
+  onOpen,
+  index,
+}: {
+  lesson: TimelineLesson
+  status: NodeStatus
+  isLast: boolean
+  onOpen: () => void
+  index: number
+}) {
+  const ref = useRef<HTMLLIElement>(null)
+  const inView = useInView(ref, { once: true, margin: '-60px' })
+
+  return (
+    <li ref={ref} className="flex gap-4">
+      <div className="flex flex-col items-center">
+        <motion.span
+          initial={{ scale: 0.5, opacity: 0 }}
+          animate={inView ? { scale: 1, opacity: 1 } : undefined}
+          transition={{ ...springDefault, delay: (index % 6) * 0.06 }}
+          className={cn(
+            'grid size-6 shrink-0 place-items-center rounded-full border-2',
+            status === 'done' && 'bg-success border-success text-canvas',
+            status === 'current' && 'border-brand-400 bg-brand-500/20 text-brand-300',
+            status === 'upcoming' && 'border-border bg-surface text-transparent',
+          )}
+        >
+          {status === 'done' && <Check size={13} strokeWidth={3} aria-hidden="true" />}
+          {status === 'current' && <Play size={11} fill="currentColor" aria-hidden="true" />}
+        </motion.span>
+        {!isLast && (
+          <motion.span
+            initial={{ scaleY: 0 }}
+            animate={inView ? { scaleY: 1 } : undefined}
+            transition={{ ...springDefault, delay: (index % 6) * 0.06 + 0.05 }}
+            className="bg-hairline my-1 w-px flex-1 origin-top"
+          />
+        )}
+      </div>
+
+      <div className="min-w-0 flex-1 pb-4">
+        <motion.button
+          onClick={onOpen}
+          whileHover={{ x: 2 }}
+          transition={springDefault}
+          className={cn(
+            'border-border bg-surface hover:border-border-strong hover:bg-surface-raised w-full rounded-md border px-4 py-3 text-left transition-colors',
+            status === 'current' && 'border-brand-500/40',
+          )}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <span className={cn('text-body', status === 'done' ? 'text-fg-subtle' : 'text-fg')}>
+              {lesson.title}
+            </span>
+            <span className="text-caption text-fg-faint shrink-0 tabular-nums">
+              {lesson.duration_minutes}m
+            </span>
+          </div>
+          {lesson.completed_at && (
+            <span className="text-caption text-success mt-1 block">
+              Completed {new Date(lesson.completed_at).toLocaleDateString()}
+            </span>
+          )}
+        </motion.button>
+      </div>
+    </li>
+  )
+}
 
 export default function CourseTimeline() {
   const { courseId } = useParams<{ courseId: string }>()
@@ -9,126 +95,128 @@ export default function CourseTimeline() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
+  const load = useCallback(() => {
     if (!courseId) return
+    setLoading(true)
+    setError(null)
     getTimeline(courseId)
       .then(setData)
       .catch((err: Error) => setError(err.message))
       .finally(() => setLoading(false))
   }, [courseId])
 
-  if (loading) return <p className="text-sm text-gray-400">Loading timeline…</p>
-  if (error) return <p className="text-sm text-red-400">{error}</p>
+  useEffect(load, [load])
+
+  if (error) {
+    return (
+      <ErrorState
+        message={error}
+        onRetry={load}
+        backTo={`/courses/${courseId}`}
+        backLabel="Back to course"
+      />
+    )
+  }
+  if (loading) return <DashboardSkeleton tiles={3} />
   if (!data) return null
 
-  const totalLessons = data.modules.reduce((s, m) => s + m.lessons.length, 0)
-  const completedLessons = data.modules.reduce(
-    (s, m) => s + m.lessons.filter((l) => l.completed_at).length,
-    0,
-  )
-  const progressPct = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0
+  const allLessons = data.modules.flatMap((m) => m.lessons)
+  const total = allLessons.length
+  const completed = allLessons.filter((l) => l.completed_at).length
+  const pct = total ? completed / total : 0
   const remainingMins = data.total_minutes - data.completed_minutes
+  const currentId = allLessons.find((l) => !l.completed_at)?.id ?? null
+
+  let flatIndex = 0
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-3 mb-2">
-        <Link to={`/courses/${courseId}`} className="text-xs text-gray-500 hover:text-gray-400">
-          ← Back to course
-        </Link>
-      </div>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Learning plan"
+        title="Timeline"
+        description="Every lesson in order, with what's done and what's left."
+        backTo={`/courses/${courseId}`}
+        backLabel="Back to course"
+      />
 
-      <h1 className="text-xl font-bold text-white">Timeline</h1>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_18rem]">
+        <div className="space-y-8">
+          {data.modules.map((module, mi) => (
+            <section key={`${module.title}-${mi}`}>
+              <div className="mb-4">
+                <p className="text-eyebrow text-fg-subtle uppercase">Module {mi + 1}</p>
+                <h2 className="text-headline text-fg mt-0.5">{module.title}</h2>
+              </div>
+              <ul>
+                {module.lessons.map((lesson, li) => {
+                  const status: NodeStatus = lesson.completed_at
+                    ? 'done'
+                    : lesson.id === currentId
+                      ? 'current'
+                      : 'upcoming'
+                  const node = (
+                    <TimelineNode
+                      key={lesson.id}
+                      lesson={lesson}
+                      status={status}
+                      index={flatIndex}
+                      isLast={li === module.lessons.length - 1}
+                      onOpen={() => navigate(`/courses/${courseId}/lessons/${lesson.id}`)}
+                    />
+                  )
+                  flatIndex += 1
+                  return node
+                })}
+              </ul>
+            </section>
+          ))}
+        </div>
 
-      {/* Stat tiles */}
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 text-center">
-          <p className="text-xl font-bold text-violet-400">{progressPct}%</p>
-          <p className="text-xs text-gray-500 mt-0.5">Progress</p>
-        </div>
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 text-center">
-          <p className="text-xl font-bold text-white">{remainingMins}m</p>
-          <p className="text-xs text-gray-500 mt-0.5">Time left</p>
-        </div>
-        <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 text-center">
-          <p className="text-xl font-bold text-white">{data.streak}</p>
-          <p className="text-xs text-gray-500 mt-0.5">Day streak</p>
-        </div>
-      </div>
+        <aside className="space-y-4 lg:sticky lg:top-20 lg:self-start">
+          <Card padding="lg">
+            <p className="text-title-lg text-fg tabular-nums">
+              {Math.round(pct * 100)}
+              <span className="text-headline text-fg-subtle">%</span>
+            </p>
+            <p className="text-caption text-fg-subtle mt-0.5">
+              {completed} of {total} lessons
+            </p>
+            <ProgressBar
+              value={pct}
+              size="md"
+              label="Overall progress"
+              hideLabel
+              className="mt-4"
+            />
+          </Card>
 
-      {/* Overall progress bar */}
-      <div>
-        <div className="flex justify-between text-xs text-gray-500 mb-1">
-          <span>{completedLessons} of {totalLessons} lessons complete</span>
-          <span>{progressPct}%</span>
-        </div>
-        <div className="h-2 bg-[#1a1a24] rounded-full overflow-hidden">
-          <div
-            className="h-full bg-violet-600 rounded-full transition-all duration-500"
-            style={{ width: `${progressPct}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Vertical timeline */}
-      <div className="space-y-6">
-        {data.modules.map((module, mi) => (
-          <div key={mi}>
-            <h2 className="text-xs text-gray-500 uppercase tracking-wider mb-3 pl-6">
-              {module.title}
-            </h2>
-            <div className="space-y-0">
-              {module.lessons.map((lesson, li) => {
-                const done = !!lesson.completed_at
-                const isLast = li === module.lessons.length - 1
-                return (
-                  <div key={lesson.id} className="flex gap-3">
-                    {/* Timeline column */}
-                    <div className="flex flex-col items-center">
-                      <div
-                        className={`w-4 h-4 rounded-full shrink-0 flex items-center justify-center border-2 transition-colors ${
-                          done
-                            ? 'bg-green-600 border-green-600'
-                            : 'bg-[#111118] border-[#2a2a3a]'
-                        }`}
-                      >
-                        {done && (
-                          <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 10 10">
-                            <path d="M2 5l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                          </svg>
-                        )}
-                      </div>
-                      {!isLast && (
-                        <div className="w-px flex-1 bg-[#2a2a3a] my-1" />
-                      )}
-                    </div>
-
-                    {/* Lesson card */}
-                    <div className="flex-1 pb-4">
-                      <button
-                        onClick={() => navigate(`/courses/${courseId}/lessons/${lesson.id}`)}
-                        className="w-full text-left rounded-lg border border-[#2a2a3a] bg-[#111118] px-3 py-2.5 hover:border-violet-600 transition-colors"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className={`text-sm ${done ? 'text-gray-400 line-through' : 'text-white'}`}>
-                            {lesson.title}
-                          </span>
-                          <span className="text-xs text-gray-500 shrink-0 ml-2">
-                            ~{lesson.duration_minutes}m
-                          </span>
-                        </div>
-                        {done && lesson.completed_at && (
-                          <p className="text-xs text-green-500 mt-0.5">
-                            Completed {new Date(lesson.completed_at).toLocaleDateString()}
-                          </p>
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1">
+            <StatTile
+              icon={Clock}
+              label="Time remaining"
+              value={remainingMins}
+              unit="m"
+              tone="info"
+              countUp
+            />
+            <StatTile
+              icon={Flame}
+              label="Day streak"
+              value={data.streak}
+              tone={data.streak > 0 ? 'warn' : 'neutral'}
+              countUp
+            />
+            <StatTile
+              icon={Target}
+              label="Time invested"
+              value={data.completed_minutes}
+              unit="m"
+              tone="success"
+              countUp
+              className="col-span-2 lg:col-span-1"
+            />
           </div>
-        ))}
+        </aside>
       </div>
     </div>
   )

@@ -1,5 +1,21 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { motion } from 'motion/react'
+import { Ear, Mic, RotateCcw, Square } from 'lucide-react'
 import { checkPronunciation, type PronunciationCheckResponse, type WordDiffItem } from '../api'
+import LevelMeter from '../components/practice/LevelMeter'
+import {
+  Badge,
+  Card,
+  ErrorState,
+  Field,
+  IconBadge,
+  Input,
+  PageHeader,
+  Select,
+  Spinner,
+} from '../components/ui'
+import { springDefault } from '../motion/springs'
+import { cn } from '../lib/cn'
 
 const PRESET_PHRASES = [
   'Hola me llamo Juan',
@@ -11,43 +27,22 @@ const PRESET_PHRASES = [
 
 type DrillState = 'idle' | 'recording' | 'processing' | 'result' | 'error'
 
+const LEGEND = [
+  { cls: 'bg-success', label: 'Correct' },
+  { cls: 'bg-danger', label: 'Missing' },
+  { cls: 'bg-warn', label: 'Substituted' },
+  { cls: 'bg-fg-faint', label: 'Extra' },
+]
+
 function WordToken({ item }: { item: WordDiffItem }) {
-  if (item.op === 'match') {
-    return <span className="text-green-400">{item.expected}</span>
-  }
+  if (item.op === 'match') return <span className="text-success">{item.expected}</span>
   if (item.op === 'missing') {
-    return (
-      <span className="rounded bg-red-900/40 px-1 text-red-400">
-        [{item.expected}]
-      </span>
-    )
+    return <span className="bg-danger/15 text-danger rounded px-1.5">[{item.expected}]</span>
   }
   if (item.op === 'substituted') {
-    return (
-      <span className="underline decoration-yellow-500 text-yellow-400">
-        {item.actual}
-      </span>
-    )
+    return <span className="text-warn decoration-warn underline underline-offset-4">{item.actual}</span>
   }
-  // extra
-  return (
-    <span className="line-through text-gray-500">
-      {item.actual}
-    </span>
-  )
-}
-
-function AccuracyBadge({ accuracy }: { accuracy: number }) {
-  const pct = Math.round(accuracy * 100)
-  const colour =
-    pct >= 80 ? 'bg-green-900/40 text-green-400 border-green-800'
-    : pct >= 50 ? 'bg-yellow-900/40 text-yellow-400 border-yellow-800'
-    : 'bg-red-900/40 text-red-400 border-red-800'
-  return (
-    <span className={`rounded-lg border px-3 py-1 text-sm font-semibold ${colour}`}>
-      {pct}% accurate
-    </span>
-  )
+  return <span className="text-fg-faint line-through">{item.actual}</span>
 }
 
 function PronunciationDrill() {
@@ -58,30 +53,43 @@ function PronunciationDrill() {
   const [state, setState] = useState<DrillState>('idle')
   const [result, setResult] = useState<PronunciationCheckResponse | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [stream, setStream] = useState<MediaStream | null>(null)
+  const [elapsed, setElapsed] = useState(0)
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const chunksRef = useRef<BlobPart[]>([])
 
   const activePhrase = useCustom ? custom.trim() : phrase
 
+  useEffect(() => {
+    if (state !== 'recording') {
+      setElapsed(0)
+      return
+    }
+    const started = Date.now()
+    const id = window.setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 250)
+    return () => window.clearInterval(id)
+  }, [state])
+
   async function startRecording() {
     setResult(null)
     setErrorMsg(null)
     chunksRef.current = []
 
-    let stream: MediaStream
+    let mediaStream: MediaStream
     try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true })
     } catch {
       setErrorMsg(
-        'Microphone access was denied. Please allow microphone access in your browser settings and try again.',
+        'Microphone access was denied. Allow microphone access in your browser settings and try again.',
       )
       setState('error')
       return
     }
 
+    setStream(mediaStream)
     const mimeType = MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/mp4'
-    const recorder = new MediaRecorder(stream, { mimeType })
+    const recorder = new MediaRecorder(mediaStream, { mimeType })
     mediaRecorderRef.current = recorder
 
     recorder.ondataavailable = (e) => {
@@ -89,7 +97,8 @@ function PronunciationDrill() {
     }
 
     recorder.onstop = async () => {
-      stream.getTracks().forEach((t) => t.stop())
+      mediaStream.getTracks().forEach((t) => t.stop())
+      setStream(null)
       const blob = new Blob(chunksRef.current, { type: mimeType })
       setState('processing')
       try {
@@ -116,140 +125,175 @@ function PronunciationDrill() {
     setErrorMsg(null)
   }
 
+  const isRecording = state === 'recording'
+  const isProcessing = state === 'processing'
+  const accuracyPct = result ? Math.round(result.accuracy * 100) : 0
+  const accuracyTone = accuracyPct >= 80 ? 'success' : accuracyPct >= 50 ? 'warn' : 'danger'
+
   return (
-    <div>
-      <h1 className="text-2xl font-semibold text-white">Pronunciation Drill</h1>
-      <p className="mt-1 text-sm text-gray-400">
-        Select a phrase, record yourself saying it, and get word-by-word feedback.
-      </p>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Practice"
+        title="Pronunciation drill"
+        description="Say a phrase out loud. Whisper transcribes it and you get word-by-word feedback."
+        backTo="/courses"
+        backLabel="Library"
+      />
 
-      {/* Phrase selector */}
-      <div className="mt-6 rounded-xl border border-[#2a2a3a] bg-[#111118] p-6 space-y-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-300">Phrase</label>
-          <select
-            value={useCustom ? '__custom__' : phrase}
-            onChange={(e) => {
-              if (e.target.value === '__custom__') {
-                setUseCustom(true)
-              } else {
-                setUseCustom(false)
-                setPhrase(e.target.value)
-              }
-              reset()
-            }}
-            className="mt-1 block w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white focus:border-violet-500 focus:outline-none"
-          >
-            {PRESET_PHRASES.map((p) => (
-              <option key={p} value={p}>
-                {p}
-              </option>
-            ))}
-            <option value="__custom__">Custom phrase…</option>
-          </select>
-        </div>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card padding="lg" className="space-y-5">
+          <Field label="Phrase">
+            {(p) => (
+              <Select
+                value={useCustom ? '__custom__' : phrase}
+                onChange={(e) => {
+                  if (e.target.value === '__custom__') setUseCustom(true)
+                  else {
+                    setUseCustom(false)
+                    setPhrase(e.target.value)
+                  }
+                }}
+                {...p}
+              >
+                {PRESET_PHRASES.map((ph) => (
+                  <option key={ph} value={ph}>
+                    {ph}
+                  </option>
+                ))}
+                <option value="__custom__">Custom phrase…</option>
+              </Select>
+            )}
+          </Field>
 
-        {useCustom && (
-          <div>
-            <label className="block text-sm font-medium text-gray-300">Custom phrase</label>
-            <input
-              type="text"
-              value={custom}
-              onChange={(e) => { setCustom(e.target.value); reset() }}
-              placeholder="Type a Spanish phrase…"
-              className="mt-1 block w-full rounded-lg border border-[#2a2a3a] bg-[#1a1a24] px-3 py-2 text-sm text-white placeholder-gray-500 focus:border-violet-500 focus:outline-none"
-            />
-          </div>
-        )}
-
-        {/* Active phrase display */}
-        {activePhrase && (
-          <div className="rounded-lg border border-[#2a2a3a] bg-[#0a0a0f] px-4 py-3">
-            <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">Say this</p>
-            <p className="text-lg text-white">{activePhrase}</p>
-          </div>
-        )}
-
-        {/* Record / Stop button */}
-        <div className="flex items-center gap-4">
-          {state !== 'recording' ? (
-            <button
-              type="button"
-              disabled={state === 'processing' || !activePhrase}
-              onClick={startRecording}
-              className="flex items-center gap-2 rounded-lg bg-violet-600 px-5 py-2 text-sm font-medium text-white hover:bg-violet-500 disabled:opacity-50"
-            >
-              <span className="inline-block h-2 w-2 rounded-full bg-white" />
-              {state === 'processing' ? 'Processing…' : 'Record'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={stopRecording}
-              className="flex items-center gap-2 rounded-lg bg-red-600 px-5 py-2 text-sm font-medium text-white hover:bg-red-500"
-            >
-              <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white" />
-              Stop
-            </button>
+          {useCustom && (
+            <Field label="Your phrase">
+              {(p) => (
+                <Input
+                  value={custom}
+                  onChange={(e) => setCustom(e.target.value)}
+                  placeholder="Type a Spanish phrase…"
+                  {...p}
+                />
+              )}
+            </Field>
           )}
 
-          {state === 'result' && (
-            <button
-              type="button"
-              onClick={reset}
-              className="rounded-lg border border-[#2a2a3a] px-4 py-2 text-sm font-medium text-gray-300 hover:bg-[#1a1a24] hover:text-white"
-            >
-              Try again
-            </button>
+          {/* The thing you read aloud should be the biggest text on the page. */}
+          <div className="border-hairline bg-canvas-elevated rounded-md border px-5 py-4">
+            <p className="text-eyebrow text-fg-subtle mb-1.5 uppercase">Say this</p>
+            <p className="text-title text-fg text-balance">
+              {activePhrase || <span className="text-fg-faint">Enter a phrase…</span>}
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center gap-3 pt-2">
+            <div className="relative">
+              {isRecording && (
+                <span className="animate-pulse-ring absolute inset-0 rounded-full" aria-hidden="true" />
+              )}
+              <motion.button
+                whileTap={{ scale: 0.94 }}
+                transition={springDefault}
+                onClick={isRecording ? stopRecording : startRecording}
+                disabled={isProcessing || !activePhrase}
+                aria-label={isRecording ? 'Stop recording' : 'Start recording'}
+                className={cn(
+                  'relative grid size-16 place-items-center rounded-full text-white transition-colors disabled:opacity-50',
+                  isRecording ? 'bg-danger' : 'bg-brand-500 hover:bg-brand-400',
+                )}
+              >
+                {isProcessing ? (
+                  <Spinner size="lg" />
+                ) : isRecording ? (
+                  <Square size={20} fill="currentColor" />
+                ) : (
+                  <Mic size={22} />
+                )}
+              </motion.button>
+            </div>
+
+            {isRecording ? (
+              <>
+                <LevelMeter stream={stream} />
+                <p className="text-caption text-fg-subtle tabular-nums" aria-live="polite">
+                  Recording · {Math.floor(elapsed / 60)}:
+                  {String(elapsed % 60).padStart(2, '0')}
+                </p>
+              </>
+            ) : (
+              <p className="text-caption text-fg-subtle">
+                {isProcessing ? 'Transcribing…' : 'Tap to record'}
+              </p>
+            )}
+
+            {state === 'result' && (
+              <button
+                onClick={reset}
+                className="text-callout text-brand-300 hover:text-brand-200 inline-flex min-h-11 items-center gap-1.5"
+              >
+                <RotateCcw size={14} aria-hidden="true" />
+                Try again
+              </button>
+            )}
+          </div>
+        </Card>
+
+        <div className="space-y-4">
+          {errorMsg && <ErrorState inline message={errorMsg} onRetry={reset} />}
+
+          {result && (
+            <Card padding="lg" className="space-y-5">
+              <div className="flex items-center justify-between gap-3">
+                <h2 className="text-headline text-fg">Word-by-word</h2>
+                <Badge tone={accuracyTone}>{accuracyPct}% accurate</Badge>
+              </div>
+
+              <motion.p className="text-body-lg flex flex-wrap gap-x-2 gap-y-1.5">
+                {result.diff.map((item, i) => (
+                  <motion.span
+                    key={i}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ ...springDefault, delay: i * 0.025 }}
+                  >
+                    <WordToken item={item} />
+                  </motion.span>
+                ))}
+              </motion.p>
+
+              <div className="border-hairline border-t pt-4">
+                <h3 className="text-eyebrow text-fg-subtle mb-1.5 flex items-center gap-2 uppercase">
+                  <IconBadge icon={Ear} tone="info" size="sm" />
+                  What the model heard
+                </h3>
+                <p className="text-callout text-fg-muted mt-2">
+                  {result.transcribed_text || (
+                    <span className="text-fg-faint italic">(nothing)</span>
+                  )}
+                </p>
+              </div>
+
+              <div className="text-caption text-fg-subtle flex flex-wrap gap-4">
+                {LEGEND.map(({ cls, label }) => (
+                  <span key={label} className="inline-flex items-center gap-1.5">
+                    <span className={cn('size-2.5 rounded-sm', cls)} aria-hidden="true" />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </Card>
+          )}
+
+          {!result && !errorMsg && (
+            <Card padding="lg" className="text-center">
+              <IconBadge icon={Mic} tone="neutral" size="lg" className="mx-auto mb-3" />
+              <p className="text-callout text-fg-muted">
+                Your feedback appears here once you've recorded a phrase.
+              </p>
+            </Card>
           )}
         </div>
       </div>
-
-      {/* Error */}
-      {state === 'error' && errorMsg && (
-        <div className="mt-4 rounded-lg border border-red-800 bg-red-900/40 px-4 py-3 text-sm text-red-400">
-          {errorMsg}
-        </div>
-      )}
-
-      {/* Result */}
-      {state === 'result' && result && (
-        <div className="mt-4 space-y-4">
-          <div className="flex items-center gap-4">
-            <AccuracyBadge accuracy={result.accuracy} />
-          </div>
-
-          <div className="rounded-xl border border-[#2a2a3a] bg-[#111118] p-5 space-y-3">
-            <div>
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-2">
-                Word-by-word feedback
-              </p>
-              <p className="flex flex-wrap gap-1.5 text-base leading-relaxed">
-                {result.diff.map((item, i) => (
-                  <WordToken key={i} item={item} />
-                ))}
-              </p>
-            </div>
-
-            <div className="border-t border-[#2a2a3a] pt-3">
-              <p className="text-xs font-medium uppercase tracking-wide text-gray-500 mb-1">
-                Listener model
-              </p>
-              <p className="text-sm text-gray-300">
-                {result.transcribed_text || <span className="italic text-gray-500">(nothing)</span>}
-              </p>
-            </div>
-          </div>
-
-          {/* Legend */}
-          <div className="flex flex-wrap gap-4 text-xs text-gray-500">
-            <span><span className="text-green-400">■</span> Correct</span>
-            <span><span className="text-red-400">■</span> Missing word</span>
-            <span><span className="text-yellow-400">■</span> Substituted</span>
-            <span><span className="text-gray-500 line-through">■</span> Extra word</span>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

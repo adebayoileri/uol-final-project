@@ -1,5 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
+import { motion, LayoutGroup } from 'motion/react'
+import { Headphones, Pause, Play } from 'lucide-react'
 import { API_URL } from '../config'
+import { Card, Spinner } from './ui'
+import { springDefault } from '../motion/springs'
+import { cn } from '../lib/cn'
 
 type PlayerState = 'idle' | 'loading' | 'playing' | 'paused' | 'done' | 'error'
 
@@ -7,6 +12,13 @@ const SPEEDS = [0.75, 1, 1.25, 1.5] as const
 
 interface AudioPlayerProps {
   lessonId: string
+}
+
+function fmt(secs: number) {
+  if (!Number.isFinite(secs)) return '0:00'
+  const m = Math.floor(secs / 60)
+  const s = Math.floor(secs % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
@@ -75,57 +87,53 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
     }
   }
 
-  function handleSpeed(s: typeof speed) {
+  function handleSpeed(s: (typeof SPEEDS)[number]) {
     setSpeed(s)
     if (audioRef.current) audioRef.current.playbackRate = s
-  }
-
-  function fmt(secs: number) {
-    const m = Math.floor(secs / 60)
-    const s = Math.floor(secs % 60)
-    return `${m}:${s.toString().padStart(2, '0')}`
   }
 
   const isPlaying = state === 'playing'
   const isLoading = state === 'loading'
   const hasAudio = state !== 'idle' && state !== 'loading' && state !== 'error'
 
+  const statusLabel = isLoading
+    ? 'Generating narration…'
+    : state === 'error'
+      ? 'Narration unavailable'
+      : state === 'done'
+        ? 'Finished'
+        : state === 'idle'
+          ? 'Listen to this lesson'
+          : 'Narration'
+
   return (
-    <div className="rounded-lg border border-[#2a2a3a] bg-[#111118] p-3 flex flex-col gap-2">
-      <div className="flex items-center gap-3">
-        <button
+    <Card padding="md">
+      <div className="flex items-center gap-4">
+        <motion.button
+          whileTap={{ scale: 0.94 }}
+          transition={springDefault}
           onClick={isPlaying ? handlePause : handlePlay}
           disabled={isLoading}
-          className="flex items-center justify-center w-8 h-8 rounded-full bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white text-xs shrink-0"
-          aria-label={isPlaying ? 'Pause' : 'Play narration'}
+          className="bg-brand-500 hover:bg-brand-400 grid size-11 shrink-0 place-items-center rounded-full text-white transition-colors disabled:opacity-50"
+          aria-label={isPlaying ? 'Pause narration' : 'Play narration'}
         >
           {isLoading ? (
-            <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
-            </svg>
+            <Spinner size="md" />
           ) : isPlaying ? (
-            <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
-              <rect x="5" y="4" width="3" height="12" rx="1" />
-              <rect x="12" y="4" width="3" height="12" rx="1" />
-            </svg>
+            <Pause size={17} fill="currentColor" />
           ) : (
-            <svg className="w-3.5 h-3.5 ml-0.5" fill="currentColor" viewBox="0 0 20 20">
-              <path d="M5 4l11 6-11 6V4z" />
-            </svg>
+            <Play size={17} fill="currentColor" className="ml-0.5" />
           )}
-        </button>
+        </motion.button>
 
-        <div className="flex-1 min-w-0">
-          <span className="text-xs text-gray-400">
-            {state === 'idle' ? 'Play narration' :
-             isLoading ? 'Generating audio…' :
-             state === 'error' ? 'Error' :
-             state === 'done' ? 'Finished' : 'Narration'}
-          </span>
+        <div className="min-w-0 flex-1">
+          <p className="text-callout text-fg-muted flex items-center gap-1.5">
+            <Headphones size={13} className="text-fg-faint shrink-0" aria-hidden="true" />
+            {statusLabel}
+          </p>
 
           {hasAudio && duration > 0 && (
-            <div className="flex items-center gap-2 mt-1">
+            <div className="mt-2 flex items-center gap-3">
               <input
                 type="range"
                 min={0}
@@ -133,35 +141,58 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
                 step={0.5}
                 value={progress}
                 onChange={handleSeek}
-                className="flex-1 h-1 accent-violet-500 cursor-pointer"
+                aria-label="Seek"
+                className={cn(
+                  'h-1 flex-1 cursor-pointer appearance-none rounded-full',
+                  'bg-surface-raised',
+                  '[&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:size-3',
+                  '[&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-brand-400',
+                  '[&::-moz-range-thumb]:size-3 [&::-moz-range-thumb]:border-0',
+                  '[&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-brand-400',
+                )}
+                style={{
+                  background: `linear-gradient(to right, var(--color-brand-500) ${
+                    (progress / duration) * 100
+                  }%, var(--color-surface-raised) ${(progress / duration) * 100}%)`,
+                }}
               />
-              <span className="text-xs text-gray-500 tabular-nums shrink-0">
+              <span className="text-caption text-fg-faint shrink-0 tabular-nums">
                 {fmt(progress)} / {fmt(duration)}
               </span>
             </div>
           )}
         </div>
 
-        <div className="flex gap-1 shrink-0">
-          {SPEEDS.map((s) => (
-            <button
-              key={s}
-              onClick={() => handleSpeed(s)}
-              className={`text-xs px-1.5 py-0.5 rounded transition-colors ${
-                speed === s
-                  ? 'bg-violet-600 text-white'
-                  : 'text-gray-500 hover:text-gray-300'
-              }`}
-            >
-              {s}×
-            </button>
-          ))}
-        </div>
+        <LayoutGroup id={`speed-${lessonId}`}>
+          <div className="bg-surface-raised flex shrink-0 gap-0.5 rounded-md p-0.5">
+            {SPEEDS.map((s) => (
+              <button
+                key={s}
+                onClick={() => handleSpeed(s)}
+                aria-pressed={speed === s}
+                className="text-caption relative rounded-sm px-2 py-1 tabular-nums"
+              >
+                {speed === s && (
+                  <motion.span
+                    layoutId="speed-pill"
+                    transition={springDefault}
+                    className="bg-brand-500 absolute inset-0 rounded-sm"
+                  />
+                )}
+                <span className={cn('relative', speed === s ? 'text-white' : 'text-fg-subtle')}>
+                  {s}×
+                </span>
+              </button>
+            ))}
+          </div>
+        </LayoutGroup>
       </div>
 
       {error && (
-        <p className="text-xs text-red-400">{error}</p>
+        <p role="alert" className="text-caption text-danger mt-2">
+          {error}
+        </p>
       )}
-    </div>
+    </Card>
   )
 }

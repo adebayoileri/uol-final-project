@@ -61,9 +61,16 @@ def db_session(test_engine):
         db.close()
 
 
-def _seed_card(db_session, due_offset_hours: int = -1, course_id: str | None = None) -> Card:
+def _seed_card(
+    db_session,
+    due_offset_hours: int = -1,
+    course_id: str | None = None,
+    due_at: datetime | None = None,
+) -> Card:
     """Insert the minimal Course→Module→Lesson→Question→Card chain.
     due_offset_hours < 0 → card already due; > 0 → card not yet due.
+    due_at overrides the offset entirely, for tests that must not depend on
+    the time of day at which the suite happens to run.
     course_id overrides the generated course's id on the card for scope testing.
     """
     course = Course(
@@ -105,7 +112,7 @@ def _seed_card(db_session, due_offset_hours: int = -1, course_id: str | None = N
     db_session.add(question)
     db_session.flush()
 
-    due = datetime.now(timezone.utc) + timedelta(hours=due_offset_hours)
+    due = due_at or (datetime.now(timezone.utc) + timedelta(hours=due_offset_hours))
     card = Card(
         question_id=question.id,
         state=1,
@@ -256,8 +263,15 @@ def test_next_future_card_in_scope_returns_204(client, db_session):
 def test_queue_counts_scoped_and_mixed(client, db_session):
     """Queue endpoint returns correct counts for mixed due dates, excluding other courses."""
     cid = "cid-queue"
+    now = datetime.now(timezone.utc)
+    # Anchored to the end of the current UTC day rather than "now + 3h", which
+    # silently falls into tomorrow whenever the suite runs after 21:00 UTC.
+    later_today = now.replace(hour=23, minute=0, second=0, microsecond=0)
+    if later_today <= now:
+        later_today = now + timedelta(minutes=1)
+
     _seed_card(db_session, course_id=cid, due_offset_hours=-1)    # overdue → due_now + today + week
-    _seed_card(db_session, course_id=cid, due_offset_hours=+3)    # due in 3h → today + week
+    _seed_card(db_session, course_id=cid, due_at=later_today)     # later today → today + week
     _seed_card(db_session, course_id=cid, due_offset_hours=+50)   # due in 50h (~2d) → week only
     _seed_card(db_session, course_id=cid, due_offset_hours=+200)  # due in 200h (~8d) → none
     _seed_card(db_session, course_id="other-cid", due_offset_hours=-1)  # excluded by scope
@@ -267,7 +281,7 @@ def test_queue_counts_scoped_and_mixed(client, db_session):
     data = resp.json()
     assert data["total"] == 4
     assert data["due_now"] == 1
-    assert data["due_today"] == 2   # -1h and +3h both fall within today's remaining hours
+    assert data["due_today"] == 2   # the overdue card and the one due later today
     assert data["due_this_week"] == 3  # -1h, +3h, +50h all within 7 days
 
 
