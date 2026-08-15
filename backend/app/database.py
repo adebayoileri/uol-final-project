@@ -27,6 +27,9 @@ def _run_migrations() -> None:
             "ALTER TABLE questions ADD COLUMN course_id TEXT",
             "ALTER TABLE cards ADD COLUMN course_id TEXT",
             "ALTER TABLE lessons ADD COLUMN completed_at DATETIME",
+            # Structured lesson body, generated lazily on first open.
+            # NULL means "not yet enriched" — an explicit state, not inferred.
+            "ALTER TABLE lessons ADD COLUMN content_json TEXT",
         ]:
             try:
                 conn.execute(text(stmt))

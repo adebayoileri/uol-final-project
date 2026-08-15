@@ -99,13 +99,6 @@ export default function Home() {
         animate="show"
         className="mx-auto max-w-3xl text-center"
       >
-        <motion.p
-          variants={listItem}
-          className="text-eyebrow text-brand-300 mb-4 inline-flex items-center gap-1.5 uppercase"
-        >
-          <Sparkles size={12} aria-hidden="true" />
-          Local-first · Llama · FSRS
-        </motion.p>
         <motion.h1
           variants={listItem}
           className="text-display-xl md:text-display-2xl text-balance bg-linear-to-br from-fg via-fg to-brand-300 bg-clip-text text-transparent"

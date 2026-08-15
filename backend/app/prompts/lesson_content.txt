@@ -1,0 +1,51 @@
+Write the teaching content for ONE lesson. This is the material a learner reads in order to actually learn the topic. It is not a summary, not an outline, and not a restatement of the lesson title.
+
+Course goal: {course_goal}
+Category: {course_category}
+Module: {module_title}
+Lesson title: {lesson_title}
+Lesson summary (already shown to the learner — do not repeat it): {lesson_description}
+Learning objectives:
+{objectives_block}
+
+Produce four things.
+
+1. key_concepts — 3 to 5 objects. For each one:
+   - "name": the term or idea exactly as a learner meets it in practice.
+   - "definition": 2 to 3 sentences. Explain the mechanism, not the label. Say what it does, when it applies, and why it behaves that way. A definition that could be swapped into a different lesson without anyone noticing is a failed definition.
+   - "example": one specific instance with real values. Write the actual code, the actual number, the actual sentence, the actual situation. Never write "for example, a variable" — write the variable.
+
+2. worked_example — one realistic scenario carried all the way through, as numbered steps. At least 4 steps, each 1 to 3 sentences. Every step must show the actual work and state the result before the next step begins. Finish with one short line naming what the reader can now do. Separate the steps using the two-character escape sequence for a newline inside the JSON string. If the topic involves code, write bare code lines with no markdown fences.
+
+3. common_pitfalls — 2 to 3 strings. Each names one specific mistake learners make on THIS topic and says what goes wrong as a result. "Practise regularly" is not a pitfall. "Opening a file without closing it, so the buffer is never flushed and the last write is silently lost" is.
+
+4. practice_prompts — 2 to 3 strings. Each is a question answerable from this lesson alone and tied to the concepts above. Prefer "why", "what happens if" and "how would you" over recall.
+
+Rules:
+- Everything must be about {lesson_title} specifically, at the level implied by the course goal.
+- If the course goal is language learning, explain in English and quote the target-language material directly.
+- No markdown headings, no bullet characters, no code fences anywhere in any value.
+- Do not invent facts you are unsure of. Three correct concepts beat five with one wrong.
+
+Output ONLY this JSON object — no other text:
+
+{{
+  "key_concepts": [
+    {{
+      "name": "The term",
+      "definition": "Two to three sentences explaining the mechanism and when it applies.",
+      "example": "A specific instance with real values."
+    }}
+  ],
+  "worked_example": "Step 1: ... Step 2: ... Step 3: ... Step 4: ...",
+  "common_pitfalls": [
+    "A specific mistake and the consequence it causes.",
+    "Another specific mistake and its consequence."
+  ],
+  "practice_prompts": [
+    "Why does ... happen when ...?",
+    "What would happen if you ...?"
+  ]
+}}
+
+Remember: output ONLY the JSON object. No markdown. No prose outside the JSON. All four keys are required.

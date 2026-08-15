@@ -8,11 +8,12 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.database import get_db
 from app.models import Card as DBCard, Lesson, Module, Question
-from app.schemas import QuestionResponse
+from app.schemas import LessonEnrichResponse, QuestionResponse
 from app.services.answer_evaluator import embed
 from app.services.embeddings import index_question
 from app.achievements.engine import evaluate_achievements
 from app.services.events import LESSON_COMPLETED, record_event
+from app.services.lesson_enricher import ensure_enriched, lesson_lock
 from app.services.question_generator import generate_questions
 
 logger = logging.getLogger(__name__)
@@ -82,6 +83,49 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
         index_question(q, lesson, db)
 
     return [QuestionResponse.model_validate(q) for q in questions]
+
+
+@router.post("/{lesson_id}/enrich", response_model=LessonEnrichResponse)
+def enrich_lesson_content(lesson_id: str, db: Session = Depends(get_db)):
+    """Generate (or return cached) deep content for a lesson.
+
+    Deliberately a separate endpoint rather than part of GET lesson detail:
+    this is a multi-second LLM call, and folding it into the detail request
+    would turn an instant page into a long blank screen on every first open,
+    mutate the database inside a GET, and make an enrichment failure break the
+    lesson page itself.
+    """
+    lesson = (
+        db.query(Lesson)
+        .options(
+            selectinload(Lesson.objectives),
+            selectinload(Lesson.module).selectinload(Module.course),
+        )
+        .filter(Lesson.id == lesson_id)
+        .first()
+    )
+    if not lesson:
+        raise HTTPException(status_code=404, detail="Lesson not found.")
+
+    if lesson.content_json:
+        return LessonEnrichResponse(status="cached", content=lesson.content)
+
+    with lesson_lock(lesson_id):
+        # Mandatory: a request that blocked here loaded `lesson` before waiting,
+        # so its Session still holds content_json = NULL. Without expiring it the
+        # double-check below reads the stale value and generates anyway — the
+        # lock would run and protect nothing.
+        db.expire(lesson, ["content_json"])
+        if lesson.content_json:
+            return LessonEnrichResponse(status="cached", content=lesson.content)
+        content = ensure_enriched(lesson, db)
+
+    if content is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Deeper lesson content is temporarily unavailable. Please try again.",
+        )
+    return LessonEnrichResponse(status="generated", content=lesson.content)
 
 
 @router.get("/{lesson_id}/questions", response_model=list[QuestionResponse])

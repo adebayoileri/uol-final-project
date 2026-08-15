@@ -5,6 +5,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, Integer, LargeBinary, Text, 
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.services.content_parser import parse_lesson_body
 
 
 class Course(Base):
@@ -50,6 +51,11 @@ class Lesson(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    # Deep teaching content (key concepts, worked example, pitfalls, practice
+    # prompts) as a JSON object, generated lazily on first open. Kept separate
+    # from `description` because that column feeds question prompts verbatim and
+    # is indexed for search — JSON in either place would be a regression.
+    content_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     module: Mapped["Module"] = relationship("Module", back_populates="lessons")
     objectives: Mapped[list["Objective"]] = relationship(
@@ -58,6 +64,19 @@ class Lesson(Base):
     questions: Mapped[list["Question"]] = relationship(
         "Question", back_populates="lesson", cascade="all, delete-orphan", order_by="Question.order_index"
     )
+
+    @property
+    def content(self) -> dict | None:
+        """Parsed structured content, or None if this lesson isn't enriched yet.
+
+        Pydantic reads properties under `from_attributes=True`, so declaring
+        `content` on a response schema is enough to expose this — no route
+        changes needed.
+        """
+        if not self.content_json:
+            return None
+        parsed = parse_lesson_body(self.content_json)
+        return {k: v for k, v in parsed.items() if k != "is_structured"}
 
 
 class Objective(Base):

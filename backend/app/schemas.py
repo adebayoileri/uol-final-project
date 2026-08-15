@@ -157,6 +157,26 @@ class CourseSummaryResponse(BaseModel):
     progress_summary: ProgressSummary
 
 
+class KeyConceptResponse(BaseModel):
+    name: str
+    definition: str
+    example: str = ""
+
+
+class LessonContent(BaseModel):
+    """Deep teaching content, generated lazily per lesson."""
+
+    key_concepts: list[KeyConceptResponse] = []
+    worked_example: str | None = None
+    common_pitfalls: list[str] = []
+    practice_prompts: list[str] = []
+
+
+class LessonEnrichResponse(BaseModel):
+    status: Literal["cached", "generated"]
+    content: LessonContent | None
+
+
 class LessonDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -168,3 +188,5 @@ class LessonDetailResponse(BaseModel):
     completed_at: datetime | None
     objectives: list[ObjectiveResponse]
     questions: list["QuestionResponse"]
+    # Populated from the Lesson.content property; None until enriched.
+    content: LessonContent | None = None
