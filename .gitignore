@@ -48,3 +48,5 @@ notebooks/outputs/
 *.onnx.json
 models/
 backend/voices/
+
+.claude
