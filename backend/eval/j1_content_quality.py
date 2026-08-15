@@ -32,14 +32,14 @@ STRUCTURED_FIELDS = ["key_concepts", "worked_example", "common_pitfalls", "pract
 
 
 def eval_lesson(lesson_data: dict) -> dict[str, bool]:
-    """Check presence of structured fields in a lesson JSON."""
-    try:
-        content = json.loads(lesson_data.get("description", ""))
-    except (json.JSONDecodeError, TypeError):
-        content = {}
-    return {
-        field: bool(content.get(field)) for field in STRUCTURED_FIELDS
-    }
+    """Check presence of the structured fields on the lesson object itself.
+
+    These fields are siblings of `description` in the generated JSON, not
+    nested inside it. The previous implementation json.loads()-ed the prose
+    description, which throws on every real lesson and reported 0.0 coverage
+    across the board.
+    """
+    return {field: bool(lesson_data.get(field)) for field in STRUCTURED_FIELDS}
 
 
 def run() -> dict:

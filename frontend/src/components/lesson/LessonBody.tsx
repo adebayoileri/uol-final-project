@@ -1,21 +1,17 @@
-import { AlertTriangle, Lightbulb, Wrench } from 'lucide-react'
+import { AlertTriangle, HelpCircle, Lightbulb, Wrench } from 'lucide-react'
+import type { LessonContent } from '../../api'
 import LessonRenderer from '../LessonRenderer'
 import CodeBlock from '../CodeBlock'
 import Callout from '../Callout'
-import { Card, IconBadge } from '../ui'
+import { Button, Card, IconBadge, Skeleton } from '../ui'
 
-interface KeyConcept {
-  name: string
-  definition: string
-  example?: string
-}
+export type EnrichState = 'idle' | 'loading' | 'ready' | 'unavailable'
 
-interface StructuredLesson {
-  key_concepts?: KeyConcept[]
-  worked_example?: string
-  common_pitfalls?: string[]
-  practice_prompts?: string[]
-  description?: string
+interface LessonBodyProps {
+  description: string
+  content: LessonContent | null
+  state: EnrichState
+  onRetry: () => void
 }
 
 function Section({
@@ -40,27 +36,45 @@ function Section({
   )
 }
 
+/** Occupies the same boxes the real content will, so nothing shifts on arrival. */
+function EnrichingSkeleton() {
+  return (
+    <div className="space-y-10" aria-busy="true" aria-label="Writing the full lesson">
+      <section className="space-y-3">
+        <Skeleton variant="title" width="11rem" />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Skeleton variant="block" height="7rem" />
+          <Skeleton variant="block" height="7rem" />
+        </div>
+      </section>
+      <section className="space-y-3">
+        <Skeleton variant="title" width="13rem" />
+        <Skeleton variant="block" height="9rem" />
+      </section>
+      <p className="text-caption text-fg-subtle">
+        Writing the full lesson — this takes a few seconds.
+      </p>
+    </div>
+  )
+}
+
 /**
- * Lesson bodies come back as structured JSON from the generation prompt, but
- * older courses (and any parse failure) fall back to markdown.
+ * The prose summary renders immediately and is never gated behind enrichment;
+ * the deep content is a progressive enhancement layered underneath it.
  */
-export default function LessonBody({ description }: { description: string }) {
-  if (description.trimStart().startsWith('{')) {
-    try {
-      const data: StructuredLesson = JSON.parse(description)
-      const concepts = data.key_concepts ?? []
-      const workedExample = data.worked_example ?? null
-      const pitfalls = data.common_pitfalls ?? []
-      const plainDesc = data.description ?? null
+export default function LessonBody({ description, content, state, onRetry }: LessonBodyProps) {
+  return (
+    <div className="space-y-10">
+      {description.trim() && <LessonRenderer content={description} />}
 
-      return (
-        <div className="space-y-10">
-          {plainDesc && <p className="text-body-lg text-fg-muted text-pretty">{plainDesc}</p>}
+      {state === 'loading' && <EnrichingSkeleton />}
 
-          {concepts.length > 0 && (
+      {content && (
+        <>
+          {content.key_concepts.length > 0 && (
             <Section icon={Lightbulb} title="Key concepts" tone="brand">
               <div className="grid gap-3 sm:grid-cols-2">
-                {concepts.map((c) => (
+                {content.key_concepts.map((c) => (
                   <Card key={c.name} padding="md">
                     <h3 className="text-headline text-brand-200">{c.name}</h3>
                     <p className="text-callout text-fg-muted mt-1.5">{c.definition}</p>
@@ -75,16 +89,16 @@ export default function LessonBody({ description }: { description: string }) {
             </Section>
           )}
 
-          {workedExample && (
+          {content.worked_example && (
             <Section icon={Wrench} title="Worked example" tone="info">
-              <CodeBlock code={workedExample} language="python" />
+              <CodeBlock code={content.worked_example} language="text" filename="Walkthrough" />
             </Section>
           )}
 
-          {pitfalls.length > 0 && (
+          {content.common_pitfalls.length > 0 && (
             <Section icon={AlertTriangle} title="Common pitfalls" tone="warn">
               <div className="space-y-2">
-                {pitfalls.map((p, i) => (
+                {content.common_pitfalls.map((p, i) => (
                   <Callout key={i} variant="warning">
                     {p}
                   </Callout>
@@ -92,12 +106,31 @@ export default function LessonBody({ description }: { description: string }) {
               </div>
             </Section>
           )}
-        </div>
-      )
-    } catch {
-      // Malformed JSON — fall through to the markdown renderer.
-    }
-  }
 
-  return <LessonRenderer content={description} />
+          {content.practice_prompts.length > 0 && (
+            <Section icon={HelpCircle} title="Think about it" tone="info">
+              <div className="space-y-2">
+                {content.practice_prompts.map((p, i) => (
+                  <Callout key={i} variant="tip">
+                    {p}
+                  </Callout>
+                ))}
+              </div>
+            </Section>
+          )}
+        </>
+      )}
+
+      {state === 'unavailable' && (
+        <Callout variant="note">
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            The deeper content for this lesson couldn't be generated just now.
+            <Button variant="link" size="sm" onClick={onRetry}>
+              Try again
+            </Button>
+          </span>
+        </Callout>
+      )}
+    </div>
+  )
 }

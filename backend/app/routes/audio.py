@@ -41,32 +41,50 @@ def _detect_lang(lesson: Lesson) -> str:
 
 
 def _build_narration_text(lesson: Lesson) -> str:
-    parts: list[str] = [f"Lesson: {lesson.title}."]
+    """Body content only — no title, no objectives, no spoken section headers.
 
-    for obj in lesson.objectives:
-        parts.append(obj.description + ".")
+    Narration should read the lesson, not announce its structure. The prose
+    summary leads because it is genuine content and is the only content an
+    unenriched lesson has, so narration degrades gracefully rather than going
+    silent.
+    """
+    parsed = parse_lesson_body(lesson.content_json or "")
+    parts: list[str] = []
 
-    parsed = parse_lesson_body(lesson.description)
-    if parsed["is_structured"]:
-        if parsed["key_concepts"]:
-            parts.append("Key concepts.")
-            for c in parsed["key_concepts"]:
-                name = c.get("name", "")
-                defn = c.get("definition", "")
-                if name and defn:
-                    parts.append(f"{name}: {defn}.")
-        if parsed["worked_example"]:
-            parts.append("Worked example.")
-            # strip code-like fragments from narration (lines that are all symbols)
-            lines = [
-                ln for ln in parsed["worked_example"].splitlines()
-                if ln.strip() and not ln.strip().startswith("#")
-            ]
-            parts.extend(lines)
-    elif lesson.description.strip():
-        parts.append(lesson.description.strip())
+    prose = (lesson.description or "").strip()
+    if prose:
+        parts.append(prose)
 
-    return " ".join(parts)
+    for concept in parsed["key_concepts"]:
+        name = concept.get("name", "").strip()
+        definition = concept.get("definition", "").strip()
+        example = concept.get("example", "").strip()
+        if not (name and definition):
+            continue
+        # "open(). Opens a file and returns…" narrates as a natural sentence
+        # pair, where "Key concept: open()" narrates as a heading read aloud.
+        parts.append(f"{name}. {definition}")
+        if example:
+            parts.append(example)
+
+    if parsed["worked_example"]:
+        for line in parsed["worked_example"].splitlines():
+            line = line.strip()
+            if line and not line.startswith("#"):
+                parts.append(line)
+
+    for pitfall in parsed["common_pitfalls"]:
+        pitfall = pitfall.strip()
+        if pitfall:
+            parts.append(pitfall)
+
+    # practice_prompts are deliberately excluded: read aloud with no pause for
+    # an answer, they only confuse.
+
+    return " ".join(
+        part if part.endswith((".", "!", "?")) else f"{part}."
+        for part in parts
+    )
 
 
 def _chunk_text(text: str, max_len: int = 900) -> list[str]:
@@ -83,7 +101,8 @@ def _chunk_text(text: str, max_len: int = 900) -> list[str]:
             current = candidate
     if current:
         chunks.append(current)
-    return chunks or [text[:max_len]]
+    # Empty input must yield no chunks — [""] would hand piper an empty argument.
+    return chunks or ([text[:max_len]] if text.strip() else [])
 
 
 def _concat_wavs(wav_chunks: list[bytes]) -> bytes:
@@ -111,6 +130,13 @@ def generate_narration(lesson_id: str, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="Lesson not found")
 
     narration_text = _build_narration_text(lesson)
+    # Before the cache lookup, so an empty lesson never writes a cache row.
+    if not narration_text.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="This lesson has no content to narrate yet.",
+        )
+
     content_hash = hashlib.sha256(narration_text.encode()).hexdigest()[:16]
 
     # Check cache (raw SQL — narration_cache is not an ORM model)

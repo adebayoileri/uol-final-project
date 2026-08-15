@@ -49,8 +49,8 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
     try {
       const res = await fetch(`${API_URL}/lessons/${lessonId}/narration`, { method: 'POST' })
       if (!res.ok) {
-        const msg = await res.text()
-        throw new Error(msg || `Server error ${res.status}`)
+        const body = await res.json().catch(() => null)
+        throw new Error(body?.detail ?? `Server error ${res.status}`)
       }
       const { url } = (await res.json()) as { url: string }
 

@@ -1,16 +1,18 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, Target } from 'lucide-react'
 import {
   completeLesson,
+  enrichLesson,
   generateQuestions,
   getCourse,
   getLessonDetail,
+  type LessonContent,
   type LessonDetailResponse,
 } from '../api'
 import AudioPlayer from '../components/AudioPlayer'
 import AIAssistantPanel from '../components/AIAssistantPanel'
-import LessonBody from '../components/lesson/LessonBody'
+import LessonBody, { type EnrichState } from '../components/lesson/LessonBody'
 import LessonCompleteBar from '../components/lesson/LessonCompleteBar'
 import QuestionDeck, { GenerateQuestionsPrompt } from '../components/lesson/QuestionDeck'
 import { Badge, Card, ErrorState, IconBadge, LessonSkeleton, useToast } from '../components/ui'
@@ -31,6 +33,25 @@ export default function LessonView() {
     return saved ? parseInt(saved, 10) : 0
   })
 
+  const [content, setContent] = useState<LessonContent | null>(null)
+  const [enrichState, setEnrichState] = useState<EnrichState>('idle')
+  // Keyed by lessonId so StrictMode's double-invoked effect fires enrichment once.
+  const enrichAttempted = useRef<string | null>(null)
+
+  const runEnrich = useCallback(async () => {
+    if (!lessonId) return
+    setEnrichState('loading')
+    try {
+      const res = await enrichLesson(lessonId)
+      setContent(res.content)
+      setEnrichState(res.content ? 'ready' : 'unavailable')
+    } catch {
+      // Deliberately no toast: the page rendered fine and this is a
+      // progressive enhancement. The retry lives in the body, in context.
+      setEnrichState('unavailable')
+    }
+  }, [lessonId])
+
   const fetchLesson = useCallback(() => {
     if (!courseId || !lessonId) return Promise.resolve()
     return getLessonDetail(courseId, lessonId)
@@ -46,6 +67,20 @@ export default function LessonView() {
   useEffect(() => {
     if (lessonId) localStorage.setItem(`lesson-${lessonId}-qi`, String(qIndex))
   }, [lessonId, qIndex])
+
+  // Fires after the lesson has painted — the reader already has the title,
+  // objectives, prose and practice deck before this starts.
+  useEffect(() => {
+    if (!lesson || !lessonId) return
+    if (lesson.content) {
+      setContent(lesson.content)
+      setEnrichState('ready')
+      return
+    }
+    if (enrichAttempted.current === lessonId) return
+    enrichAttempted.current = lessonId
+    void runEnrich()
+  }, [lesson, lessonId, runEnrich])
 
   async function handleGenerate() {
     if (!lessonId) return
@@ -148,7 +183,12 @@ export default function LessonView() {
             </Card>
           )}
 
-          {lesson.description && <LessonBody description={lesson.description} />}
+          <LessonBody
+            description={lesson.description}
+            content={content}
+            state={enrichState}
+            onRetry={runEnrich}
+          />
 
           <section className="space-y-4">
             <h2 className="text-headline text-fg">

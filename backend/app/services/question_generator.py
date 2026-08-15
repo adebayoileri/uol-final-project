@@ -45,7 +45,9 @@ def _build_context_blocks(lesson: "Lesson") -> dict[str, str]:
         f"- {obj.description}" for obj in lesson.objectives
     ) or "- (no objectives listed)"
 
-    parsed = parse_lesson_body(lesson.description)
+    # Structured content lives in content_json; `description` stays prose
+    # because it is passed into the prompt verbatim below.
+    parsed = parse_lesson_body(lesson.content_json or "")
 
     key_concepts_block = ""
     if parsed["key_concepts"]:

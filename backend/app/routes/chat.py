@@ -53,7 +53,13 @@ def chat(lesson_id: str, body: ChatRequest, db: Session = Depends(get_db)):
         )
         db.commit()
 
-        for chunk in stream_chat(lesson.title, lesson.description, history, body.message):
+        for chunk in stream_chat(
+            lesson.title,
+            lesson.description,
+            history,
+            body.message,
+            content_json=lesson.content_json,
+        ):
             yield chunk
             # Accumulate non-control chunks
             if chunk.startswith("data: {"):

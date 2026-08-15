@@ -27,23 +27,35 @@ _CHAT_SYSTEM = (
 )
 
 
-def _build_context(lesson_description: str, lesson_title: str) -> str:
-    """Build a compact context block from lesson content (max ~2000 chars)."""
+def _build_context(
+    lesson_description: str,
+    lesson_title: str,
+    content_json: str | None = None,
+) -> str:
+    """Build the grounding block from lesson content (max ~4000 chars).
+
+    Prose and structured content are both included — both are real grounding,
+    so there is no reason to withhold one in favour of the other.
+    """
     parts = [f"Lesson: {lesson_title}"]
-    parsed = parse_lesson_body(lesson_description)
-    if parsed["is_structured"]:
-        if parsed["key_concepts"]:
-            parts.append("Key concepts: " + "; ".join(
-                f"{c['name']} — {c['definition']}"
-                for c in parsed["key_concepts"][:5]
-            ))
-        if parsed["worked_example"]:
-            parts.append("Worked example: " + parsed["worked_example"][:400])
-        if parsed["common_pitfalls"]:
-            parts.append("Common pitfalls: " + "; ".join(parsed["common_pitfalls"][:3]))
-    else:
-        parts.append(lesson_description[:600])
-    return "\n".join(parts)[:2000]
+
+    prose = (lesson_description or "").strip()
+    if prose:
+        parts.append(prose[:600])
+
+    parsed = parse_lesson_body(content_json or "")
+    if parsed["key_concepts"]:
+        parts.append("Key concepts: " + "; ".join(
+            f"{c['name']} — {c['definition']}"
+            for c in parsed["key_concepts"][:5]
+        ))
+    if parsed["worked_example"]:
+        # 400 chars cut a real 4-step example off after step one.
+        parts.append("Worked example: " + parsed["worked_example"][:1200])
+    if parsed["common_pitfalls"]:
+        parts.append("Common pitfalls: " + "; ".join(parsed["common_pitfalls"][:3]))
+
+    return "\n".join(parts)[:4000]
 
 
 def stream_chat(
@@ -51,9 +63,10 @@ def stream_chat(
     lesson_description: str,
     history: list[dict],
     message: str,
+    content_json: str | None = None,
 ) -> Iterator[str]:
     """Yield streaming tokens as plain text chunks (SSE data payloads)."""
-    context = _build_context(lesson_description, lesson_title)
+    context = _build_context(lesson_description, lesson_title, content_json)
     system = f"{_CHAT_SYSTEM}\n\n---\nLesson content:\n{context}\n---"
 
     messages = [{"role": "system", "content": system}]
@@ -65,6 +78,11 @@ def stream_chat(
         "model": OLLAMA_MODEL,
         "messages": messages,
         "stream": True,
+        # Load-bearing: a 4000-char system context plus ten history turns
+        # exceeds Ollama's default runtime window, and overflow evicts from the
+        # START of the prompt — exactly where the lesson content sits. Without
+        # this the tutor looks grounded in code and is ungrounded at runtime.
+        "options": {"num_ctx": 8192},
     }
 
     try:

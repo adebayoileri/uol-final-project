@@ -146,6 +146,25 @@ export interface ReviewQueueResponse {
   due_this_week: number;
 }
 
+export interface KeyConcept {
+  name: string;
+  definition: string;
+  example: string;
+}
+
+/** Deep teaching content, generated lazily on first lesson open. */
+export interface LessonContent {
+  key_concepts: KeyConcept[];
+  worked_example: string | null;
+  common_pitfalls: string[];
+  practice_prompts: string[];
+}
+
+export interface LessonEnrichResponse {
+  status: "cached" | "generated";
+  content: LessonContent | null;
+}
+
 export interface LessonDetailResponse {
   id: string;
   order_index: number;
@@ -155,6 +174,12 @@ export interface LessonDetailResponse {
   completed_at: string | null;
   objectives: ObjectiveResponse[];
   questions: QuestionResponse[];
+  /** Null until the lesson has been enriched. */
+  content: LessonContent | null;
+}
+
+export function enrichLesson(lessonId: string): Promise<LessonEnrichResponse> {
+  return request<LessonEnrichResponse>(`/lessons/${lessonId}/enrich`, { method: "POST" });
 }
 
 export function getCourses(): Promise<CourseSummaryResponse[]> {

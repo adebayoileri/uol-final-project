@@ -514,3 +514,91 @@ main: processing 'samples/jfk.wav' (176000 samples, 11.0 sec), 4 threads, 1 proc
 **Reason**: The wide two-column layouts, icon-badge stat tiles, gradient display headings and calendar widget were adopted, because they are genuine improvements over a 768px single column. The bottom pill nav was not, because those five labels describe a linear walkthrough of the product rather than its actual information architecture — they are a presentation narrative, and shipping them would have made the navigation misrepresent the structure beneath it. The "Models in Use" panel was reinterpreted rather than copied: the panel *shape* (titled rows, tinted icon badges, right-aligned values) was reused for the learning-insights sidebar, but every row is bound to a real value from `/courses/{id}/insights`. Displaying a static list of model names dressed as live status would have been decorative fiction in a document that is meant to be evidence.
 
 **Status**: Active.
+
+----
+
+## 2026-08-15 — Two-pass lesson generation: a skeleton pass, then lazy per-lesson enrichment
+
+**Context**: Generated lessons were shallow — a two-sentence summary and nothing else. The cause was a single line: `app/routes/courses.py:80` persisted only `lesson_data["description"]`, discarding the `key_concepts`, `worked_example`, `common_pitfalls` and `practice_prompts` that `course_structure.txt` explicitly asks for. Measured on the live database: 19 lessons, mean description length 98 characters, longest 264.
+
+Simply storing the discarded fields would not have been enough. One `POST /courses` call has to emit every lesson in the course — up to 10 modules × 5 lessons for a long-term course — so the model must ration a single output budget across as many as 50 lessons, each supposedly carrying 3–5 concepts, a multi-step worked example, pitfalls and prompts. That is why the prose was thin in the first place.
+
+**Alternatives considered**:
+- **Store the discarded fields and widen the generation call** (raise `num_ctx`, `num_predict`) — rejected. Cheapest change, but one call still has to divide its budget across every lesson, so quality stays uneven and long-term courses truncate. It also leaves the 19 existing lessons shallow forever.
+- **Enrich every lesson eagerly during course creation** — rejected. Deep content everywhere, but course creation becomes 20–50 sequential LLM calls, several minutes of waiting, with one failure risking the whole course.
+
+**Reason**: Course creation keeps its single fast call and stays deliberately shallow (titles, a prose summary, objectives, duration). A second prompt, `app/prompts/lesson_content.txt`, generates the body for **one** lesson at a time, on first open, cached in `lessons.content_json`. Each lesson therefore gets an entire context window to itself rather than a fiftieth of one — measured effect on a real lesson: **30 characters of description became 2,082 characters of structured content in 17 seconds**.
+
+The lazy trigger has a second benefit that a backfill script would not: the 19 pre-existing shallow lessons enrich themselves as they are opened, so no regeneration and no migration script is needed. Failure leaves `content_json` NULL, which is a retryable state rather than a poison pill.
+
+`_validate_content()` enforces thresholds (≥2 concepts, at least one definition ≥60 characters, a worked example ≥200 characters) and retries once. This is what stops the original defect recurring: output that satisfies the JSON schema but is shallow is rejected rather than stored.
+
+**Status**: Active.
+
+----
+
+## 2026-08-15 — Structured content in a separate `content_json` column, not inside `description`
+
+**Context**: The enrichment has to live somewhere. `content_parser.parse_lesson_body()` and the frontend's `LessonBody` were both written expecting `lesson.description` to be a JSON object string, so overloading that column was the path of least resistance.
+
+**Alternatives considered**:
+- **Store JSON in `description`** — rejected, and the two reasons are concrete rather than stylistic. `app/services/question_generator.py:66` passes `lesson.description` into the question prompt as the `lesson_description` template variable; a JSON blob there would make every generated question worse. `app/services/embeddings.py:20` builds the search index text as `f"{lesson.title}: {lesson.description}"`; JSON there would pollute semantic search and put raw braces into the snippet rendered in search results.
+
+**Reason**: A new nullable `lessons.content_json TEXT` column. `description` stays prose and keeps its two existing jobs. `NULL` is an explicit "not yet enriched" state rather than something inferred from whether a string happens to start with `{`. `Lesson.content` is exposed as a property, and because Pydantic reads properties under `from_attributes=True`, `LessonDetailResponse` picks it up with no change to the route.
+
+`tests/test_lesson_context.py::test_question_context_keeps_description_as_prose` pins the regression this decision exists to prevent.
+
+**Status**: Active.
+
+----
+
+## 2026-08-15 — Enrichment behind `POST /lessons/{id}/enrich`, not inside the lesson GET
+
+**Context**: Enrichment needs a trigger. The obvious place is `get_lesson_detail`, which already loads the lesson.
+
+**Reason**: Rejected on three counts. It would turn an instantly-rendering page into a 10–60 second blank screen on every first open, which is the single worst outcome available here. It would mutate the database inside a `GET`, breaking caching, retry and prefetch semantics for any client or proxy that speculatively re-issues the request. And an enrichment failure would then have to either be swallowed — leaving a GET that sometimes takes a minute and returns nothing new — or surfaced as a 503 on the lesson page itself.
+
+A separate endpoint keeps the risk contained: if enrichment breaks entirely, the reader still gets the title, objectives, prose and practice deck exactly as fast as before, and loses only the enriched sections. The frontend fires it after first paint and shows a skeleton in place. Failure renders a quiet inline retry rather than a toast, because the page did render correctly and a red error would misrepresent that.
+
+`tests/test_lesson_enrichment.py::test_enrich_failure_leaves_null_and_lesson_detail_still_works` asserts this invariant directly.
+
+**Status**: Active.
+
+----
+
+## 2026-08-15 — Per-lesson in-process lock with a double-check, over a DB guard
+
+**Context**: Two concurrent opens of the same unenriched lesson would otherwise both trigger a multi-second LLM call. This is routine rather than theoretical: React 18 StrictMode double-invokes effects in development — the mode the demo and dissertation screenshots run in.
+
+**Alternatives considered**:
+- **A DB guard alone** (`UPDATE … WHERE content_json IS NULL`) — insufficient. It prevents the duplicate *write* but not the duplicate *call*, and with a single local Ollama instance requests serialise, so a redundant call does not merely waste GPU time — it doubles the wait the user is watching.
+- **Accept-and-overwrite** — worst of the three. Same wasted call, plus two different bodies generated for one lesson, so whichever lands second silently replaces content the reader may already be looking at and invalidates the narration hash a second time.
+- **Return 202 and have the client poll** — correct for a multi-user service, unnecessary here. Blocking the second caller keeps the client free of a polling loop and a state machine, and costs one threadpool worker in a single-user application.
+
+**Reason**: A `threading.Lock` per lesson id (not `asyncio.Lock` — the route is `def`, so FastAPI runs it in the threadpool), with a double-check inside the lock. The subtle part is `db.expire(lesson, ["content_json"])` immediately after acquiring: the blocked request loaded the lesson into its Session's identity map *before* waiting, so re-reading `content_json` without expiring returns the stale in-memory `NULL`, the double-check passes, and the second call proceeds — the lock would appear to work while doing nothing. This was verified rather than assumed: with the lock and the expire removed, `test_concurrent_enrich_generates_once` fails with `2 != 1`.
+
+**Limitation, accepted**: the lock is per-process, so under `uvicorn --workers N` two processes could still race. The deployment is a single local process, and the `content_json IS NULL` check keeps the worst case a wasted call rather than corruption.
+
+**Status**: Active.
+
+----
+
+## 2026-08-15 — First explicit Ollama `options` block: `num_ctx` on enrichment and chat
+
+**Context**: No Ollama caller in this project had ever sent an `options` block — no `num_ctx`, `num_predict` or `temperature` anywhere. Every call ran at Ollama's server defaults.
+
+**Reason**: That is survivable for short outputs and actively harmful for long ones. `llama3.1:8b` advertises a 131,072-token context, but Ollama's *runtime* `num_ctx` default is far lower (2048 on stock builds) unless set, and it counts prompt and generation in the same window. Lesson enrichment targets 1,000–1,400 output tokens; at the default the model runs out mid-`worked_example`, emits a truncated string, fails `json.loads`, and burns both retry attempts for a 503 with no obvious cause. Enrichment therefore sets `num_ctx: 8192`, `num_predict: 2048` (a ceiling, so a degenerate repetition loop becomes a clean rejection rather than a 180-second timeout) and `temperature: 0.4` (below the 0.8 default — improves JSON structural adherence; going below ~0.3 makes examples generic and repetitive across lessons, which is the exact failure this feature exists to fix).
+
+The tutor chat gets `num_ctx: 8192` for a different and more insidious reason: its system message now carries up to 4,000 characters of lesson content plus ten history turns. On overflow Ollama evicts from the **start** of the prompt — precisely where the lesson grounding sits. The tutor would look grounded in the code and be ungrounded at runtime, which is the hardest class of bug to notice and the worst to discover during a demo.
+
+**Status**: Active.
+
+----
+
+## 2026-08-15 — Search index deliberately left on the prose description
+
+**Context**: With `content_json` populated, the semantic search index could be rebuilt over the enriched content instead of `f"{lesson.title}: {lesson.description}"`.
+
+**Reason**: Deferred, not overlooked. It would require re-embedding on every enrichment, and it would put worked-example code into `content_text` — the string rendered directly in search results, where a fragment of a Python walkthrough is worse than a sentence of prose. Revisit only if search recall proves inadequate in evaluation.
+
+**Status**: Deferred.
