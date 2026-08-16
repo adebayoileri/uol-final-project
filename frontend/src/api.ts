@@ -62,6 +62,8 @@ export interface CardResponse {
   stability: number | null;
   difficulty: number | null;
   due: string;
+  course_id: string | null;
+  course_title: string | null;
 }
 
 export interface AnswerResponse {
@@ -119,9 +121,14 @@ export function getQuestions(lessonId: string): Promise<QuestionResponse[]> {
   return request<QuestionResponse[]>(`/lessons/${lessonId}/questions`);
 }
 
-export function getNextCard(courseId?: string): Promise<CardResponse | null> {
-  const params = courseId ? `?course_id=${courseId}` : "";
-  return request<CardResponse | null>(`/review/next${params}`);
+export function getNextCard(
+  courseId?: string,
+  filters: ReviewFilters = {},
+): Promise<CardResponse | null> {
+  const params = reviewFilterParams(filters);
+  if (courseId) params.set("course_id", courseId);
+  const qs = params.toString();
+  return request<CardResponse | null>(`/review/next${qs ? `?${qs}` : ""}`);
 }
 
 export interface ProgressSummary {
@@ -144,6 +151,38 @@ export interface ReviewQueueResponse {
   due_now: number;
   due_today: number;
   due_this_week: number;
+}
+
+/** Date filters shared by the review hub and the session they launch. */
+export interface ReviewFilters {
+  created_from?: string;
+  created_to?: string;
+  due_from?: string;
+  due_to?: string;
+}
+
+export interface ReviewCourseGroup {
+  course_id: string;
+  title: string;
+  category: string;
+  total_cards: number;
+  due_now: number;
+  oldest_created_at: string | null;
+  newest_created_at: string | null;
+}
+
+/** Serialise filters for a query string, dropping empty values. */
+export function reviewFilterParams(filters: ReviewFilters = {}): URLSearchParams {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value) params.set(key, value);
+  }
+  return params;
+}
+
+export function getReviewCourses(filters: ReviewFilters = {}): Promise<ReviewCourseGroup[]> {
+  const qs = reviewFilterParams(filters).toString();
+  return request<ReviewCourseGroup[]>(`/review/courses${qs ? `?${qs}` : ""}`);
 }
 
 export interface KeyConcept {
@@ -186,9 +225,14 @@ export function getCourses(): Promise<CourseSummaryResponse[]> {
   return request<CourseSummaryResponse[]>("/courses");
 }
 
-export function getReviewQueue(courseId?: string): Promise<ReviewQueueResponse> {
-  const params = courseId ? `?course_id=${courseId}` : "";
-  return request<ReviewQueueResponse>(`/review/queue${params}`);
+export function getReviewQueue(
+  courseId?: string,
+  filters: ReviewFilters = {},
+): Promise<ReviewQueueResponse> {
+  const params = reviewFilterParams(filters);
+  if (courseId) params.set("course_id", courseId);
+  const qs = params.toString();
+  return request<ReviewQueueResponse>(`/review/queue${qs ? `?${qs}` : ""}`);
 }
 
 export function getLessonDetail(courseId: string, lessonId: string): Promise<LessonDetailResponse> {

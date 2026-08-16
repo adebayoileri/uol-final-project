@@ -9,6 +9,7 @@ import CourseLibrary from './pages/CourseLibrary'
 import CourseHome from './pages/CourseHome'
 import LessonView from './pages/LessonView'
 import ReviewSession from './pages/ReviewSession'
+import ReviewHub from './pages/ReviewHub'
 import PronunciationDrill from './pages/PronunciationDrill'
 import CompletionScreen from './pages/CompletionScreen'
 import CourseTimeline from './pages/CourseTimeline'
@@ -26,8 +27,11 @@ function Page({ width, children }: { width: ContainerWidth; children: React.Reac
 
 function App() {
   const location = useLocation()
-  // Review is a focus surface: no footer competing with the card.
-  const focusMode = location.pathname.endsWith('/review')
+  // Only a running session is a focus surface. The hub at /review is a
+  // browsing surface and keeps its footer.
+  const focusMode =
+    location.pathname === '/review/session' ||
+    /^\/courses\/[^/]+\/review$/.test(location.pathname)
 
   return (
     <div className="bg-canvas flex min-h-dvh flex-col">
@@ -86,6 +90,14 @@ function App() {
               />
               <Route
                 path="/review"
+                element={
+                  <Page width="wide">
+                    <ReviewHub />
+                  </Page>
+                }
+              />
+              <Route
+                path="/review/session"
                 element={
                   <Page width="wide">
                     <ReviewSession />

@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { CalendarCheck, Check, Meh, RotateCcw, Trophy, X, Zap } from 'lucide-react'
+import { CalendarCheck, Check, Filter, Meh, RotateCcw, Trophy, X, Zap } from 'lucide-react'
 import {
   answerQuestion,
   getNextCard,
@@ -43,6 +43,20 @@ const RATINGS = [
 
 export default function ReviewSession() {
   const { courseId } = useParams<{ courseId?: string }>()
+  const [searchParams] = useSearchParams()
+
+  // Carried through from the review hub so the session pool matches the count
+  // the hub displayed before the user pressed Review.
+  const filters = useMemo(
+    () => ({
+      created_from: searchParams.get('created_from') ?? undefined,
+      created_to: searchParams.get('created_to') ?? undefined,
+      due_from: searchParams.get('due_from') ?? undefined,
+      due_to: searchParams.get('due_to') ?? undefined,
+    }),
+    [searchParams],
+  )
+  const hasFilters = Object.values(filters).some(Boolean)
 
   const [phase, setPhase] = useState<Phase>('answering')
   const [card, setCard] = useState<CardResponse | null>(null)
@@ -63,7 +77,7 @@ export default function ReviewSession() {
 
   const loadNextCard = useCallback(async () => {
     try {
-      const next = await getNextCard(courseId)
+      const next = await getNextCard(courseId, filters)
       if (!next) {
         setPhase('done')
       } else {
@@ -76,12 +90,12 @@ export default function ReviewSession() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load card.')
     }
-  }, [courseId])
+  }, [courseId, filters])
 
   useEffect(() => {
     async function init() {
       try {
-        const q = await getReviewQueue(courseId)
+        const q = await getReviewQueue(courseId, filters)
         setQueue(q)
         setSessionTotal(q.due_now)
         if (q.due_now === 0) {
@@ -96,7 +110,7 @@ export default function ReviewSession() {
       }
     }
     init()
-  }, [courseId, loadNextCard])
+  }, [courseId, filters, loadNextCard])
 
   async function handleCheckAnswer() {
     if (!card || !userAnswer.trim()) return
@@ -147,7 +161,7 @@ export default function ReviewSession() {
     return () => document.removeEventListener('keydown', onKey)
   }, [phase, grading])
 
-  const backLink = courseId ? `/courses/${courseId}` : '/courses'
+  const backLink = courseId ? `/courses/${courseId}` : '/review'
 
   if (error) {
     return <ErrorState message={error} backTo={backLink} backLabel="Back to course" />
@@ -225,6 +239,23 @@ export default function ReviewSession() {
             </span>
           </div>
           <ProgressBar value={progress} size="sm" label="Session progress" hideLabel />
+          {(hasFilters || (!courseId && card?.course_title)) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              {/* A mixed session draws from every course, so each card says
+                  where it came from — previously impossible, the payload
+                  carried no course at all. */}
+              {!courseId && card?.course_title && (
+                <Badge tone="brand" size="sm">
+                  {card.course_title}
+                </Badge>
+              )}
+              {hasFilters && (
+                <Badge tone="info" size="sm" icon={Filter}>
+                  Filtered
+                </Badge>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="relative">
