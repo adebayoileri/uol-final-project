@@ -13,6 +13,7 @@ from app.routes.speech import router as speech_router
 from app.routes.audio import router as audio_narration_router
 from app.routes.audio_serve import router as audio_serve_router
 from app.routes.achievements import router as achievements_router
+from app.routes.drills import router as drills_router
 from app.routes.chat import router as chat_router
 
 
@@ -48,6 +49,7 @@ app.include_router(audio_narration_router)
 app.include_router(audio_serve_router)
 app.include_router(chat_router)
 app.include_router(achievements_router)
+app.include_router(drills_router)
 
 from app.routes.insights import router as insights_router
 app.include_router(insights_router)
