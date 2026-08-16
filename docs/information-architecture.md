@@ -97,3 +97,58 @@ lesson at a time would break the scheduling algorithm's assumptions.
 | `PronunciationDrill` (`/pronunciation`) | Stays at `/pronunciation` | Not part of course IA; standalone tool |
 | *(missing)* | `/courses` (Course library) | New page |
 | *(missing)* | `/courses/:id/lessons/:id` (Lesson view) | New page |
+
+---
+
+## Revision — 2026-08-16: review hub and course-scoped practice
+
+The five-destination table above is superseded in two places.
+
+### Review is now a hub, not a session
+
+`/review` previously ran a session over every course's cards at once, with no
+way to see or choose which course a card came from. It is now a picker.
+
+| Route | Purpose |
+|---|---|
+| `/review` | **Hub** — per-course due counts, date filters, and a "review everything" action |
+| `/review/session` | Mixed cross-course session (what `/review` used to do) |
+| `/courses/:id/review` | Course-scoped session (unchanged) |
+
+Filters (created-date range, due-date range) are chosen on the hub and carried
+into the session as query params, so the session pool matches the number the
+hub displayed. A running session shows a "Filtered" badge, and a mixed session
+labels each card with its course.
+
+Only a *session* is a focus surface (footer hidden). The hub is a browsing
+surface and keeps its chrome.
+
+### Practice is course-scoped
+
+The earlier note that `PronunciationDrill` *"stays at `/pronunciation`; not part
+of course IA; standalone tool"* no longer holds. Pronunciation drew from five
+hardcoded Spanish phrases regardless of the course, so a chess course was
+offered Spanish practice and a language course got nothing from its own
+material.
+
+| Route | Purpose |
+|---|---|
+| `/practice` | Course picker, showing which drills each course can offer |
+| `/practice/:courseId` | Drill menu — five tiles |
+| `/practice/:courseId/:kind` | The drill (`mcq`, `match`, `order`, `listen`, `pronounce`) |
+| `/pronunciation` | Redirect to `/practice`, so existing links survive |
+
+Drills are derived from `lessons.content_json`, so a drill is only available
+once the relevant lessons have been opened and enriched. Unavailable drills are
+shown **disabled with the reason** rather than hidden — with most lessons
+unenriched, hiding them would make a course look broken rather than not yet
+ready.
+
+Pronunciation is additionally gated on the course being a language course,
+resolved by `course_profile` rather than by matching the free-text category.
+
+### Destinations, revised
+
+Six rather than five: Home, Library, Course home, Lesson, **Review** (hub) and
+**Practice** (hub), with sessions and drills as leaf surfaces beneath the last
+two.

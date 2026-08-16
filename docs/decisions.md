@@ -622,3 +622,64 @@ Two related corrections landed with it. Finalisation moved out of `onDone` and i
 The bubble's rendered text is also no longer keyed on `isStreaming` (`msg.content || streamingContent` instead), since `isStreaming` flips false a beat before the text is committed and would blank the reply for a frame.
 
 **Status**: Active.
+
+----
+
+## 2026-08-16 — Course classification from goal + category + title, not category alone
+
+**Context**: Two features branched on `Course.category`, which is free text typed into a plain input box. Both were silently wrong against the real database: `_detect_lang` tested `"spanish" in category` while the Spanish course was categorised `"Language"`, so it was narrated by an English voice; `_is_python_lesson` required `category == "python"` while the Python course was categorised `"Programming"`, so it had never received fill-in-the-blank code exercises despite "Python" appearing in both its goal and its title.
+
+**Alternatives considered**:
+- **Constrain `category` to an enum at course creation** — rejected. It would invalidate five existing courses, and it pushes a taxonomy decision onto a learner describing a goal in their own words.
+- **Store a resolved language column** — rejected. It is a pure function of three columns already present, so a column adds a migration and a staleness risk (edit the goal, the column lies) for nothing.
+
+**Reason**: `app/services/course_profile.py` resolves target language, TTS voice and Python-ness by matching keywords across goal, category and title together — which is where the signal actually lives. Both call sites now delegate.
+
+Two sub-decisions worth recording. `is_python` stays Python-specific rather than a generic `is_code`, because `question_fill_blank.txt` emits Python and a JavaScript course must not receive Python exercises. And `tts_language` degrades to English for any language Piper has no voice for, which is correct rather than merely safe: enrichment writes definitions in English and quotes target-language material inline, so an English voice reading an English definition is right — while Whisper, which *is* multilingual, still receives the true target language for pronunciation checking.
+
+**Status**: Active.
+
+----
+
+## 2026-08-16 — A dedicated `/review/courses`, not `GET /courses`'s progress summary
+
+**Context**: The review hub needs per-course due counts. `GET /courses` already returns `progress_summary.due_now` per course, so reusing it looked free.
+
+**Reason**: `course_progress()` takes no filter arguments, so it cannot answer "how many are due in this course *given these filters*". The moment a date filter is applied, the picker's numbers would disagree with the session it launches — the hub would be lying about what the user is about to get. The new endpoint applies exactly the same `_apply_card_filters` helper as `/review/next` and `/review/queue`, and there is a test asserting hub count == session count under the same filter. It is also one `GROUP BY` over the existing `(course_id, due)` index rather than four COUNT queries per course.
+
+Two query mechanics documented rather than "fixed": `cards.due` is TEXT ISO-8601, so due-range filtering is a lexicographic string comparison — valid only because every value is written as normalised UTC ISO, which is the same assumption `Card.due <= now_iso` has always relied on. And `cards.course_id` is nullable, so grouping excludes NULLs explicitly rather than emitting a blank row.
+
+**Status**: Active.
+
+----
+
+## 2026-08-16 — Drills derived from stored content, with no LLM call at drill time
+
+**Context**: Four new practice drills were needed to cover the VARK modalities that the read-and-type review loop does not reach. The obvious route would be to generate each drill with the LLM on demand.
+
+**Alternatives considered**:
+- **Generate drill items per session with Ollama** — rejected. Every drill would inherit a multi-second wait, a failure mode, and non-determinism; a learner retrying a drill would get different questions, and the app would stop working offline.
+
+**Reason**: The enrichment pass already stores key concepts (name, definition, example), a worked example, pitfalls and practice prompts per lesson. All five drills are pure functions of that, seeded deterministically per course and kind. They start instantly, work with Ollama stopped, and produce the same items for the same content — which also makes them testable without stubbing an LLM.
+
+Consequential sub-decisions:
+- **Distractor pools are course-wide, not per-lesson.** With one or two lessons enriched, a per-lesson pool routinely cannot field four options. Below the floor (3 concepts for MCQ, 4 for match, 3 steps for order) the drill reports **unavailable with a reason** rather than being padded with filler or borrowing from another course, which would be incoherent.
+- **Grading is client-side**; the answer travels in the payload. This is self-directed study, not assessment, and it buys zero-latency feedback. A deliberate trade-off, not an oversight.
+- **The listening drill never sends the spoken text.** Audio is synthesised once, cached by content hash, and served by the existing `/audio/{filename}`; sending the definition would let the learner read instead of listen and defeat the drill entirely.
+- **Drills record a `DRILL_COMPLETED` event but do not touch FSRS.** Practice is not scheduled review; feeding drill results into the scheduler would corrupt the stability estimates the review system depends on. They still feed streaks and achievements.
+
+**Status**: Active.
+
+----
+
+## 2026-08-16 — Worked-example steps are split on markers, not only newlines
+
+**Context**: The ordering drill splits a lesson's `worked_example` into steps. `lesson_content.txt` explicitly asks the model to separate steps with a newline escape inside the JSON string.
+
+**Reason**: It does not comply. Checking the three enriched lessons in the live database, *all three* returned a single line of `"Step 1: ... Step 2: ... Step 3: ..."`. Splitting on newlines alone therefore produced one step for every real worked example, which silently made the kinesthetic drill permanently unavailable — the availability manifest reported "no worked example with enough steps yet" for content that plainly had four.
+
+`split_steps` now tries newlines, then falls back to splitting before `Step N:` markers, then before `N.` numbering. Tightening the prompt was considered and rejected as the primary fix: the parser has to tolerate what the model actually emits, and a prompt cannot be relied on to hold a format it has already been asked for once.
+
+Worth noting as a general lesson for the report: this defect was invisible to the test suite, because the fixtures used the newline-separated shape the prompt *specifies* rather than the inline shape the model *produces*. It only surfaced by running the generator against real stored content.
+
+**Status**: Active.
