@@ -20,6 +20,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.models import Lesson
 from app.services.content_parser import parse_lesson_body
+from app.services.course_profile import profile_for_lesson
 from app.services.tts import synthesize_speech
 
 logger = logging.getLogger(__name__)
@@ -31,13 +32,13 @@ _NARRATION_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _detect_lang(lesson: Lesson) -> str:
-    try:
-        category = lesson.module.course.category.lower()
-        if "spanish" in category or "español" in category or "espanol" in category:
-            return "es"
-    except AttributeError:
-        pass
-    return "en"
+    """Voice to narrate this lesson in.
+
+    Delegates to the shared resolver, which reads goal/category/title together.
+    Checking `category` alone missed a Spanish course filed under "Language",
+    so it was narrated in an English voice.
+    """
+    return profile_for_lesson(lesson).tts_language
 
 
 def _build_narration_text(lesson: Lesson) -> str:

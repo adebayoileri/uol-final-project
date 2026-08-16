@@ -16,6 +16,7 @@ import httpx
 
 from agents.main import SYSTEM_PROMPT
 from app.services.content_parser import parse_lesson_body
+from app.services.course_profile import profile_for_lesson
 
 if TYPE_CHECKING:
     from app.models import Lesson
@@ -33,10 +34,13 @@ _FILL_BLANK_TEMPLATE: str = (_PROMPTS_DIR / "question_fill_blank.txt").read_text
 
 
 def _is_python_lesson(lesson: "Lesson") -> bool:
-    try:
-        return lesson.module.course.category.lower() == "python"
-    except AttributeError:
-        return False
+    """Whether to generate fill-in-the-blank Python exercises.
+
+    Delegates to the shared resolver. Requiring `category == "python"` exactly
+    meant a course categorised "Programming" never got code exercises, even
+    with "Python" in both its goal and its title.
+    """
+    return profile_for_lesson(lesson).is_python
 
 
 def _build_context_blocks(lesson: "Lesson") -> dict[str, str]:
