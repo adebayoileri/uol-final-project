@@ -366,6 +366,103 @@ export function getInsights(courseId: string): Promise<InsightsResponse> {
   return request<InsightsResponse>(`/courses/${courseId}/insights`)
 }
 
+// ── Practice drills ────────────────────────────────────────────────────────
+
+export type DrillKind = "mcq" | "match" | "order" | "listen" | "pronounce";
+
+export interface DrillAvailability {
+  kind: DrillKind;
+  title: string;
+  modality: string;
+  description: string;
+  available: boolean;
+  item_count: number;
+  reason: string | null;
+}
+
+export interface CourseDrills {
+  course_id: string;
+  course_title: string;
+  enriched_lessons: number;
+  total_lessons: number;
+  target_language: string | null;
+  drills: DrillAvailability[];
+}
+
+export interface McqItem {
+  id: string;
+  prompt: string;
+  options: string[];
+  answer_index: number;
+  lesson_title: string;
+  example: string | null;
+}
+
+export interface MatchItem {
+  id: string;
+  name: string;
+  definition: string;
+  lesson_title: string;
+}
+
+export interface OrderItem {
+  id: string;
+  lesson_title: string;
+  /** Display order. */
+  steps: string[];
+  /** Display indices, in the sequence they belong. */
+  correct_order: number[];
+}
+
+/** Same shape as MCQ, but the prompt is audio — the text is never sent. */
+export interface ListenItem {
+  id: string;
+  audio_url: string;
+  options: string[];
+  answer_index: number;
+  lesson_title: string;
+}
+
+export interface PronounceItem {
+  id: string;
+  phrase: string;
+  concept: string;
+  lesson_title: string;
+}
+
+export type DrillItem = McqItem | MatchItem | OrderItem | ListenItem | PronounceItem;
+
+export interface DrillResponse<T = DrillItem> {
+  kind: DrillKind;
+  course_id: string;
+  course_title: string;
+  items: T[];
+}
+
+export function getCourseDrills(courseId: string): Promise<CourseDrills> {
+  return request<CourseDrills>(`/courses/${courseId}/drills`);
+}
+
+export function getDrill<T = DrillItem>(
+  courseId: string,
+  kind: DrillKind,
+  n = 8,
+): Promise<DrillResponse<T>> {
+  return request<DrillResponse<T>>(`/courses/${courseId}/drills/${kind}?n=${n}`);
+}
+
+export function completeDrill(
+  courseId: string,
+  kind: DrillKind,
+  correct: number,
+  total: number,
+): Promise<null> {
+  return request<null>(
+    `/courses/${courseId}/drills/${kind}/complete?correct=${correct}&total=${total}`,
+    { method: "POST" },
+  );
+}
+
 export interface ForecastDay {
   date: string
   count: number

@@ -1,4 +1,4 @@
-import { Route, Routes, useLocation } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import Container, { type ContainerWidth } from './components/layout/Container'
 import TopNav from './components/layout/TopNav'
 import Footer from './components/layout/Footer'
@@ -11,6 +11,12 @@ import LessonView from './pages/LessonView'
 import ReviewSession from './pages/ReviewSession'
 import ReviewHub from './pages/ReviewHub'
 import PronunciationDrill from './pages/PronunciationDrill'
+import PracticeHub from './pages/PracticeHub'
+import CourseDrills from './pages/CourseDrills'
+import McqDrill from './pages/drills/McqDrill'
+import MatchDrill from './pages/drills/MatchDrill'
+import OrderDrill from './pages/drills/OrderDrill'
+import ListenDrill from './pages/drills/ListenDrill'
 import CompletionScreen from './pages/CompletionScreen'
 import CourseTimeline from './pages/CourseTimeline'
 import NotFound from './pages/NotFound'
@@ -105,13 +111,63 @@ function App() {
                 }
               />
               <Route
-                path="/pronunciation"
+                path="/practice"
+                element={
+                  <Page width="wide">
+                    <PracticeHub />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId"
+                element={
+                  <Page width="wide">
+                    <CourseDrills />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId/mcq"
+                element={
+                  <Page width="medium">
+                    <McqDrill />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId/match"
+                element={
+                  <Page width="medium">
+                    <MatchDrill />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId/order"
+                element={
+                  <Page width="medium">
+                    <OrderDrill />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId/listen"
+                element={
+                  <Page width="medium">
+                    <ListenDrill />
+                  </Page>
+                }
+              />
+              <Route
+                path="/practice/:courseId/pronounce"
                 element={
                   <Page width="medium">
                     <PronunciationDrill />
                   </Page>
                 }
               />
+              {/* Old standalone route, kept so existing links don't 404. */}
+              <Route path="/pronunciation" element={<Navigate to="/practice" replace />} />
               <Route
                 path="/courses/:courseId/complete"
                 element={

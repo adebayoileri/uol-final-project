@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { Library, Menu, Mic, RotateCcw, X } from 'lucide-react'
+import { Dumbbell, Library, Menu, RotateCcw, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { springDefault, springSheet, fadeFast } from '../../motion/springs'
 import { getReviewQueue } from '../../api'
@@ -12,7 +12,7 @@ import Logo from './Logo'
 const LINKS = [
   { to: '/courses', label: 'Library', icon: Library },
   { to: '/review', label: 'Review', icon: RotateCcw },
-  { to: '/pronunciation', label: 'Practice', icon: Mic },
+  { to: '/practice', label: 'Practice', icon: Dumbbell },
 ] as const
 
 /** Drives the scroll edge effect: no divider until content is actually under the bar. */

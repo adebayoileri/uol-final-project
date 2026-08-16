@@ -295,3 +295,59 @@ def test_complete_records_an_event_without_touching_cards(client, db_session):
     course = _seed(db_session, lesson_contents=[_content(4)])
     resp = client.post(f"/courses/{course.id}/drills/mcq/complete?correct=3&total=4")
     assert resp.status_code == 204
+
+
+# ---------------------------------------------------------------------------
+# Worked-example splitting
+# ---------------------------------------------------------------------------
+
+def test_split_steps_handles_newline_separated():
+    from app.services.drills import split_steps
+
+    assert len(split_steps("Step 1: a.\nStep 2: b.\nStep 3: c.")) == 3
+
+
+def test_split_steps_handles_inline_markers():
+    """What the model actually returns: one line of "Step 1: ... Step 2: ..."."""
+    from app.services.drills import split_steps
+
+    raw = (
+        "Step 1: Open a file named 'data.txt' in read mode. "
+        "Step 2: Assign the returned file object to a variable. "
+        "Step 3: Call read() on it. "
+        "Step 4: Close the handle."
+    )
+    steps = split_steps(raw)
+    assert len(steps) == 4
+    assert steps[0].startswith("Step 1")
+    assert steps[3].startswith("Step 4")
+
+
+def test_split_steps_handles_numbered_prose():
+    from app.services.drills import split_steps
+
+    assert len(split_steps("1. First thing. 2. Second thing. 3. Third thing.")) == 3
+
+
+def test_split_steps_returns_few_when_there_is_no_structure():
+    from app.services.drills import split_steps
+
+    assert len(split_steps("Just one continuous explanation with no steps.")) < 3
+
+
+def test_order_available_for_inline_step_content(client, db_session):
+    """Regression: inline steps made the ordering drill permanently unavailable."""
+    inline = json.dumps(
+        {
+            "key_concepts": [
+                {"name": "A", "definition": "A long enough definition of the concept A.", "example": ""},
+                {"name": "B", "definition": "A long enough definition of the concept B.", "example": ""},
+            ],
+            "worked_example": "Step 1: do this. Step 2: then this. Step 3: finally this.",
+            "common_pitfalls": [],
+            "practice_prompts": [],
+        }
+    )
+    course = _seed(db_session, lesson_contents=[inline])
+    drills = {d["kind"]: d for d in client.get(f"/courses/{course.id}/drills").json()["drills"]}
+    assert drills["order"]["available"] is True

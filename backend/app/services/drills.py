@@ -11,6 +11,7 @@ pronounce (aural).
 """
 
 import hashlib
+import re
 import random
 from dataclasses import dataclass
 from typing import Any, Literal
@@ -115,15 +116,41 @@ def collect_concepts(lessons: list[Lesson]) -> list[Concept]:
     return out
 
 
+def split_steps(worked_example: str) -> list[str]:
+    """Split a worked example into steps.
+
+    The enrichment prompt asks for newline-separated steps, but in practice the
+    model routinely returns one line of "Step 1: ... Step 2: ...". Splitting on
+    newlines alone left every real worked example looking like a single step,
+    which made the ordering drill permanently unavailable — so fall back to the
+    explicit markers.
+    """
+    if not worked_example:
+        return []
+
+    steps = [line.strip() for line in worked_example.splitlines() if line.strip()]
+    if len(steps) >= MIN_ORDER_STEPS:
+        return steps
+
+    # "Step 1: ..." / "Step 2: ..." run together on one line.
+    marked = [s.strip() for s in re.split(r"(?=\bStep\s+\d+\s*[:.])", worked_example) if s.strip()]
+    if len(marked) >= MIN_ORDER_STEPS:
+        return marked
+
+    # "1. ... 2. ..." numbered prose.
+    numbered = [s.strip() for s in re.split(r"(?=(?:^|\s)\d+\.\s)", worked_example) if s.strip()]
+    if len(numbered) >= MIN_ORDER_STEPS:
+        return numbered
+
+    return steps
+
+
 def collect_step_sets(lessons: list[Lesson]) -> list[dict[str, Any]]:
     """Worked examples with enough steps to be worth reordering."""
     out: list[dict[str, Any]] = []
     for lesson in lessons:
         parsed = parse_lesson_body(lesson.content_json or "")
-        worked = parsed["worked_example"]
-        if not worked:
-            continue
-        steps = [line.strip() for line in worked.splitlines() if line.strip()]
+        steps = split_steps(parsed["worked_example"] or "")
         if len(steps) < MIN_ORDER_STEPS:
             continue
         out.append({"lesson_id": lesson.id, "lesson_title": lesson.title, "steps": steps})

@@ -1,7 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useParams } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { Ear, Mic, RotateCcw, Square } from 'lucide-react'
-import { checkPronunciation, type PronunciationCheckResponse, type WordDiffItem } from '../api'
+import {
+  checkPronunciation,
+  getCourseDrills,
+  getDrill,
+  type PronounceItem,
+  type PronunciationCheckResponse,
+  type WordDiffItem,
+} from '../api'
 import LevelMeter from '../components/practice/LevelMeter'
 import {
   Badge,
@@ -16,14 +24,6 @@ import {
 } from '../components/ui'
 import { springDefault } from '../motion/springs'
 import { cn } from '../lib/cn'
-
-const PRESET_PHRASES = [
-  'Hola me llamo Juan',
-  'Buenos días cómo estás',
-  'Me gustaría un café por favor',
-  'Dónde está el baño',
-  'Hablas inglés',
-]
 
 type DrillState = 'idle' | 'recording' | 'processing' | 'result' | 'error'
 
@@ -46,7 +46,14 @@ function WordToken({ item }: { item: WordDiffItem }) {
 }
 
 function PronunciationDrill() {
-  const [phrase, setPhrase] = useState(PRESET_PHRASES[0])
+  const { courseId } = useParams<{ courseId?: string }>()
+
+  // Phrases come from the course's own concepts. They used to be five
+  // hardcoded Spanish strings shown to every course, chess included.
+  const [items, setItems] = useState<PronounceItem[] | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [language, setLanguage] = useState('es')
+  const [phrase, setPhrase] = useState('')
   const [custom, setCustom] = useState('')
   const [useCustom, setUseCustom] = useState(false)
 
@@ -60,6 +67,24 @@ function PronunciationDrill() {
   const chunksRef = useRef<BlobPart[]>([])
 
   const activePhrase = useCustom ? custom.trim() : phrase
+
+  const loadPhrases = useCallback(() => {
+    if (!courseId) return
+    setItems(null)
+    setLoadError(null)
+    Promise.all([
+      getDrill<PronounceItem>(courseId, 'pronounce', 12),
+      getCourseDrills(courseId).catch(() => null),
+    ])
+      .then(([drill, availability]) => {
+        setItems(drill.items)
+        if (drill.items[0]) setPhrase(drill.items[0].phrase)
+        if (availability?.target_language) setLanguage(availability.target_language)
+      })
+      .catch((err: Error) => setLoadError(err.message))
+  }, [courseId])
+
+  useEffect(loadPhrases, [loadPhrases])
 
   useEffect(() => {
     if (state !== 'recording') {
@@ -102,7 +127,7 @@ function PronunciationDrill() {
       const blob = new Blob(chunksRef.current, { type: mimeType })
       setState('processing')
       try {
-        const res = await checkPronunciation(blob, activePhrase)
+        const res = await checkPronunciation(blob, activePhrase, language)
         setResult(res)
         setState('result')
       } catch (err) {
@@ -130,14 +155,26 @@ function PronunciationDrill() {
   const accuracyPct = result ? Math.round(result.accuracy * 100) : 0
   const accuracyTone = accuracyPct >= 80 ? 'success' : accuracyPct >= 50 ? 'warn' : 'danger'
 
+  if (loadError) {
+    return (
+      <ErrorState
+        title="No phrases to practise"
+        message={loadError}
+        onRetry={loadPhrases}
+        backTo={courseId ? `/practice/${courseId}` : '/practice'}
+        backLabel="Other drills"
+      />
+    )
+  }
+
   return (
     <div className="space-y-8">
       <PageHeader
         eyebrow="Practice"
         title="Pronunciation drill"
         description="Say a phrase out loud. Whisper transcribes it and you get word-by-word feedback."
-        backTo="/courses"
-        backLabel="Library"
+        backTo={courseId ? `/practice/${courseId}` : '/practice'}
+        backLabel={courseId ? 'Other drills' : 'Practice'}
       />
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -155,9 +192,9 @@ function PronunciationDrill() {
                 }}
                 {...p}
               >
-                {PRESET_PHRASES.map((ph) => (
-                  <option key={ph} value={ph}>
-                    {ph}
+                {(items ?? []).map((item) => (
+                  <option key={item.id} value={item.phrase}>
+                    {item.phrase}
                   </option>
                 ))}
                 <option value="__custom__">Custom phrase…</option>
@@ -171,7 +208,7 @@ function PronunciationDrill() {
                 <Input
                   value={custom}
                   onChange={(e) => setCustom(e.target.value)}
-                  placeholder="Type a Spanish phrase…"
+                  placeholder="Type a phrase to practise…"
                   {...p}
                 />
               )}
