@@ -87,6 +87,9 @@ class CardResponse(BaseModel):
     stability: float | None
     difficulty: float | None
     due: str  # ISO 8601 UTC
+    # Provenance, so a cross-course session can say where a card came from.
+    course_id: str | None = None
+    course_title: str | None = None
 
 
 class GradeRequest(BaseModel):
@@ -140,6 +143,18 @@ class ReviewQueueResponse(BaseModel):
     due_now: int
     due_today: int
     due_this_week: int
+
+
+class ReviewCourseGroup(BaseModel):
+    """One row of the review hub's course picker."""
+
+    course_id: str
+    title: str
+    category: str
+    total_cards: int
+    due_now: int
+    oldest_created_at: datetime | None = None
+    newest_created_at: datetime | None = None
 
 
 class ProgressSummary(BaseModel):

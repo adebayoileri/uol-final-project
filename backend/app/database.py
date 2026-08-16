@@ -62,6 +62,10 @@ def _run_migrations() -> None:
         conn.execute(text(
             "CREATE INDEX IF NOT EXISTS ix_cards_course_due ON cards (course_id, due)"
         ))
+        # Supports the review hub's created-date filter.
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_cards_created ON cards (created_at)"
+        ))
         # Narration cache table
         try:
             conn.execute(text("""
