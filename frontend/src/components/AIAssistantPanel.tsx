@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Send, Sparkles } from 'lucide-react'
 import { useSSE } from '../hooks/useSSE'
@@ -25,25 +25,38 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
   const streamingContentRef = useRef('')
 
   const { isStreaming, start } = useSSE(`${API_URL}/lessons/${lessonId}/chat`, {
-    onChunk: (token) => setStreamingContent((prev) => prev + token),
-    onDone: () => {
-      setMessages((prev) => {
-        const last = prev[prev.length - 1]
-        const full = streamingContentRef.current
-        if (last?.role === 'assistant' && last.content === '') {
-          return [...prev.slice(0, -1), { role: 'assistant', content: full }]
-        }
-        return [...prev, { role: 'assistant', content: full }]
-      })
-      setStreamingContent('')
-      streamingContentRef.current = ''
+    // The ref is the source of truth and is written synchronously; the state
+    // exists only to trigger a re-render. A whole response can arrive inside a
+    // single stream read, so anything that syncs the ref from an effect is
+    // still empty by the time the stream ends.
+    onChunk: (token) => {
+      streamingContentRef.current += token
+      setStreamingContent(streamingContentRef.current)
     },
     onError: (msg) => setError(msg),
   })
 
-  useEffect(() => {
-    streamingContentRef.current = streamingContent
-  }, [streamingContent])
+  /**
+   * Commit the streamed text into the transcript. Called once the stream has
+   * definitely finished, rather than from onDone — a stream that ends without
+   * a [DONE] sentinel (server restart, dropped connection, abort) would
+   * otherwise leave the reply on screen but never retain it.
+   */
+  const finalise = useCallback(() => {
+    const full = streamingContentRef.current
+    streamingContentRef.current = ''
+    setStreamingContent('')
+    setMessages((prev) => {
+      const last = prev[prev.length - 1]
+      const isPlaceholder = last?.role === 'assistant' && last.content === ''
+      if (isPlaceholder) {
+        // Nothing arrived — drop the placeholder rather than leaving a
+        // permanently blank bubble in the transcript.
+        return full ? [...prev.slice(0, -1), { role: 'assistant', content: full }] : prev.slice(0, -1)
+      }
+      return full ? [...prev, { role: 'assistant', content: full }] : prev
+    })
+  }, [])
 
   useEffect(() => {
     fetch(`${API_URL}/lessons/${lessonId}/chat/history`)
@@ -78,10 +91,13 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
       { role: 'assistant', content: '' },
     ])
 
+    // `start` resolves only once the stream has fully finished, including the
+    // case where it ended without a [DONE] sentinel.
     await start({
       message: text,
       history: messages.map((m) => ({ role: m.role, content: m.content })),
     })
+    finalise()
   }
 
   return (
@@ -116,7 +132,10 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
 
         {messages.map((msg, i) => {
           const isLastAssistant = msg.role === 'assistant' && i === messages.length - 1
-          const content = isLastAssistant && isStreaming ? streamingContent : msg.content
+          // Prefer the committed message, fall back to the live buffer. Not
+          // keyed on isStreaming: that flips false a beat before the text is
+          // committed, which would blank the reply for a frame.
+          const content = msg.content || (isLastAssistant ? streamingContent : '')
           const isUser = msg.role === 'user'
 
           return (

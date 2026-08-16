@@ -602,3 +602,23 @@ The tutor chat gets `num_ctx: 8192` for a different and more insidious reason: i
 **Reason**: Deferred, not overlooked. It would require re-embedding on every enrichment, and it would put worked-example code into `content_text` — the string rendered directly in search results, where a fragment of a Python walkthrough is worse than a sentence of prose. Revisit only if search recall proves inadequate in evaluation.
 
 **Status**: Deferred.
+
+----
+
+## 2026-08-16 — Stream accumulation belongs in a ref written synchronously, not in state synced by an effect
+
+**Context**: The AI tutor streamed its reply into the panel correctly, then lost it the instant the stream ended — the text appeared during generation and was never retained in the transcript.
+
+The backend was not at fault: verified directly, `POST /lessons/{id}/chat` emitted 23 SSE lines terminated by `[DONE]` and persisted both the user message and the full assistant reply to `lesson_chat_messages`. The defect was entirely in `AIAssistantPanel`.
+
+`onChunk` appended each token to React state, and a `useEffect` mirrored that state into `streamingContentRef`. `onDone` then read the ref to commit the finished message. But `useSSE` invokes `onChunk` and `onDone` **synchronously** while draining a single network read, and a React effect body does not run until after the current task yields. The measured reply arrived in about 1.3 seconds, so every token and the `[DONE]` sentinel were parsed in one pass with no re-render between them — the ref still held its initial `""` when `onDone` fired. The transcript was therefore committed with empty content while `setStreamingContent("")` simultaneously cleared the visible text.
+
+Reproduced deterministically outside React by modelling those two orderings against the parse loop copied verbatim from `useSSE`: the old strategy yields `""`, the fixed strategy yields the complete reply.
+
+**Reason**: The ref is now the authoritative accumulator and is written synchronously inside `onChunk`; the state exists purely to trigger a re-render. Any design that recovers streamed data from state written earlier in the same synchronous pass is racing the renderer and will fail whenever a response arrives quickly — which is the common case, not the edge case.
+
+Two related corrections landed with it. Finalisation moved out of `onDone` and into the point where `start()` resolves, because `start` resolves for **every** terminal condition, whereas `onDone` fires only on an explicit `[DONE]` — a stream cut short by a server restart, a dropped connection or an abort would previously have left the reply on screen and never retained it. And the empty assistant placeholder is now dropped rather than committed when nothing arrives, instead of leaving a permanently blank bubble that would also be replayed as history context on the next turn.
+
+The bubble's rendered text is also no longer keyed on `isStreaming` (`msg.content || streamingContent` instead), since `isStreaming` flips false a beat before the text is committed and would blank the reply for a frame.
+
+**Status**: Active.
