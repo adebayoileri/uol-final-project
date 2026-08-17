@@ -357,3 +357,54 @@ def test_unauthenticated_requests_are_rejected(test_engine):
         for path in ("/courses", "/review/next", "/review/queue", "/achievements", "/search?q=x"):
             assert anon.get(path).status_code == 401, path
     app.dependency_overrides.clear()
+
+
+# ---------------------------------------------------------------------------
+# Audio: the one path a browser loads without an Authorization header
+# ---------------------------------------------------------------------------
+
+def test_bob_cannot_fetch_alices_narration_audio(clients, alice_content):
+    """Narration filenames are {lesson_id}_{hash}.wav."""
+    _, bob = clients
+    filename = f"{alice_content['lesson_id']}_deadbeefdeadbeef.wav"
+    assert bob.get(f"/audio/{filename}").status_code == 404
+
+
+def test_bob_cannot_fetch_alices_drill_audio(clients, alice_content):
+    """Drill filenames are drill_{course_id}_{digest}.wav."""
+    _, bob = clients
+    filename = f"drill_{alice_content['course_id']}_deadbeefdeadbeef.wav"
+    assert bob.get(f"/audio/{filename}").status_code == 404
+
+
+def test_alice_reaches_her_own_audio_path(clients, alice_content):
+    """Owned but absent from disk is 404 too — but from the file check, not
+    the ownership check. Proves the ownership gate is not the thing failing."""
+    alice, _ = clients
+    resp = alice.get(f"/audio/{alice_content['lesson_id']}_deadbeefdeadbeef.wav")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Audio file not found"
+
+
+@pytest.mark.parametrize("filename", ["nonsense.wav", "no-underscore.wav", "drill_only.wav"])
+def test_unrecognised_audio_filenames_are_rejected(clients, filename):
+    """Fail closed: a name matching neither shape is never served."""
+    alice, _ = clients
+    assert alice.get(f"/audio/{filename}").status_code in (400, 404)
+
+
+def test_audio_requires_authentication(test_engine):
+    TestingSession = sessionmaker(bind=test_engine, autocommit=False, autoflush=False)
+
+    def override_get_db():
+        db = TestingSession()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides.pop(current_user, None)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as anon:
+        assert anon.get("/audio/anything.wav").status_code == 401
+    app.dependency_overrides.clear()

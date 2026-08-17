@@ -51,10 +51,15 @@ def list_drills(
     return drill_availability(course, load_course_lessons(course_id, db))
 
 
-def _synthesise_cached(text: str, lang: str) -> str | None:
-    """Render `text` to a cached WAV and return its public URL, or None."""
+def _synthesise_cached(text: str, lang: str, course_id: str) -> str | None:
+    """Render `text` to a cached WAV and return its public URL, or None.
+
+    The filename carries the course id so /audio can check ownership. A purely
+    content-addressed name is shared by any two courses that generate the same
+    text, which makes it impossible to attribute.
+    """
     digest = hashlib.sha256(f"{lang}:{text}".encode()).hexdigest()[:16]
-    filename = f"drill_{digest}.wav"
+    filename = f"drill_{course_id}_{digest}.wav"
     path = _AUDIO_DIR / filename
     if not path.is_file():
         try:
@@ -93,7 +98,7 @@ def get_drill(
         lang = resolve_course_profile(course).tts_language
         playable = []
         for item in items:
-            url = _synthesise_cached(item["speak"], lang)
+            url = _synthesise_cached(item["speak"], lang, course_id)
             if url is None:
                 continue
             # The spoken text never reaches the client — being able to read it
