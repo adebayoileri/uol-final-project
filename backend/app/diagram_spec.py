@@ -21,7 +21,7 @@ import math
 import re
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 # Caps exist to bound both the render and the prompt. A 40-node graph is not a
 # teaching aid, and an unbounded list is a way for one bad generation to make a
@@ -108,6 +108,57 @@ class _DiagramBase(BaseModel):
 
 # ── board ────────────────────────────────────────────────────────────────────
 
+# Piece movement, as offsets. `slide` means repeat the offset to the edge.
+#
+# This is here because of a defect found by running generation against the live
+# Chess Fundamentals course: the model produced a bishop on e2 highlighting
+# a1, h8, a8, h1, c4 and f5, of which only c4 is on a diagonal. Every one of
+# those is a legal square, so nothing structural could reject it — it was a
+# drawable, plausible, and completely false picture of how a bishop moves.
+#
+# Which square a piece can reach is geometry, and geometry is the half of this
+# design that belongs to code. Leaving it to the model was the mistake.
+_MOVES: dict[str, tuple[list[tuple[int, int]], bool]] = {
+    "N": ([(1, 2), (2, 1), (2, -1), (1, -2), (-1, -2), (-2, -1), (-2, 1), (-1, 2)], False),
+    "B": ([(1, 1), (1, -1), (-1, 1), (-1, -1)], True),
+    "R": ([(1, 0), (-1, 0), (0, 1), (0, -1)], True),
+    "Q": ([(1, 1), (1, -1), (-1, 1), (-1, -1), (1, 0), (-1, 0), (0, 1), (0, -1)], True),
+    "K": ([(1, 1), (1, -1), (-1, 1), (-1, -1), (1, 0), (-1, 0), (0, 1), (0, -1)], False),
+}
+
+# Unicode pieces normalise onto the same letters; a pawn is deliberately absent,
+# because its move depends on colour and history and cannot be checked here.
+_GLYPH_ALIASES = {
+    "♘": "N", "♞": "N", "♗": "B", "♝": "B", "♖": "R", "♜": "R",
+    "♕": "Q", "♛": "Q", "♔": "K", "♚": "K",
+}
+
+
+def reachable_squares(glyph: str, at: str, size: int) -> set[str] | None:
+    """Squares this piece could move to on an empty board.
+
+    None means "not a piece whose movement is defined here" — an unknown glyph,
+    or a pawn — in which case the caller must not check anything.
+    """
+    letter = _GLYPH_ALIASES.get(glyph, glyph.upper())
+    move = _MOVES.get(letter)
+    origin = parse_square(at, size)
+    if move is None or origin is None:
+        return None
+
+    offsets, slide = move
+    file_index, rank_index = origin
+    out: set[str] = set()
+    for df, dr in offsets:
+        f, r = file_index + df, rank_index + dr
+        while 0 <= f < size and 0 <= r < size:
+            out.add(f"{chr(ord('a') + f)}{r + 1}")
+            if not slide:
+                break
+            f += df
+            r += dr
+    return out
+
 
 class BoardPiece(BaseModel):
     at: str
@@ -145,16 +196,70 @@ class BoardDiagram(_DiagramBase):
                     f"highlighted square {square!r} is off a "
                     f"{self.size}x{self.size} board"
                 )
+
+        self._check_reachability(occupied)
         return self
+
+    def _check_reachability(self, occupied: set[str]) -> None:
+        """If every piece is one whose movement is defined, highlights must fit.
+
+        Applied only when all pieces are known chess pieces, so a board used as
+        a coordinate grid or a matrix — glyphs like "1" or "x" — is unaffected.
+        Highlights may be a subset (illustrating two of a knight's eight moves
+        is fine); what is rejected is a square no piece present could reach.
+
+        A false rejection costs the lesson its diagram. A false acceptance
+        teaches a rule that is wrong. Given that asymmetry, this errs strict.
+        """
+        if not self.pieces or not self.highlight:
+            return
+
+        allowed: set[str] = set()
+        for piece in self.pieces:
+            squares = reachable_squares(piece.glyph, piece.at, self.size)
+            if squares is None:
+                return  # Not a chess board, or a pawn — nothing to check.
+            allowed |= squares
+
+        # A piece's own square is a legitimate thing to highlight.
+        allowed |= occupied
+
+        unreachable = [s for s in self.highlight if s not in allowed]
+        if unreachable:
+            glyphs = ", ".join(f"{p.glyph} on {p.at}" for p in self.pieces)
+            raise ValueError(
+                f"highlighted {unreachable} unreachable by {glyphs} — "
+                "the squares do not match how the piece moves"
+            )
 
 
 # ── graph ────────────────────────────────────────────────────────────────────
+
+
+def _clip(value: Any, limit: int) -> Any:
+    """Truncate an over-long label instead of rejecting the diagram for it.
+
+    Label length is a display concern, not a truth claim — and the renderers
+    truncate to well under this anyway. Rejecting a whole diagram over one
+    verbose node costs a lesson its picture and buys no correctness, which is
+    the wrong side of the trade this validator exists to make. Found on the
+    live History of AI course, where a 95-character node label threw away an
+    otherwise sound graph.
+    """
+    if isinstance(value, str) and len(value) > limit:
+        return value[: limit - 1].rstrip() + "…"
+    return value
 
 
 class GraphNode(BaseModel):
     id: str = Field(..., min_length=1, max_length=48)
     label: str = Field(..., min_length=1, max_length=80)
     tone: Tone = "neutral"
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _clip_label(cls, value: Any) -> Any:
+        return _clip(value, 80)
 
 
 class GraphEdge(BaseModel):
@@ -166,6 +271,11 @@ class GraphEdge(BaseModel):
     to: str
     label: str | None = Field(None, max_length=80)
     directed: bool = True
+
+    @field_validator("label", mode="before")
+    @classmethod
+    def _clip_label(cls, value: Any) -> Any:
+        return _clip(value, 80)
 
 
 class GraphDiagram(_DiagramBase):
@@ -200,46 +310,45 @@ class GraphDiagram(_DiagramBase):
             if edge.from_ == edge.to:
                 raise ValueError(f"self-loop on {edge.from_!r}")
 
-        if self.layout == "tree":
-            self._check_tree(known)
-        elif self.layout == "chain":
-            self._check_chain(known)
+        # A layout is a presentation choice, not a claim about the world, so a
+        # mismatch is repaired rather than rejected. The nodes and edges are the
+        # content and they have already been checked; `layered` draws branching
+        # and cyclic data correctly, so downgrading to it yields a correct
+        # picture where rejecting would have yielded no picture at all. Seen on
+        # the live History of AI course, which asked for `chain` and then
+        # described a branching structure.
+        if self.layout == "tree" and not self._is_tree(known):
+            self.layout = "layered"
+        elif self.layout == "chain" and not self._is_chain(known):
+            self.layout = "layered"
         return self
 
-    def _check_tree(self, known: set[str]) -> None:
-        """A tree layout that is not a tree lays out on top of itself."""
+    def _is_tree(self, known: set[str]) -> bool:
+        """One root, one parent each, no cycle — otherwise nodes overlap."""
         parents: dict[str, str] = {}
         for edge in self.edges:
             if edge.to in parents:
-                raise ValueError(
-                    f"tree layout: {edge.to!r} has more than one parent"
-                )
+                return False
             parents[edge.to] = edge.from_
 
-        roots = known - set(parents)
-        if len(roots) != 1:
-            raise ValueError(
-                f"tree layout needs exactly one root, found {len(roots)}"
-            )
+        if len(known - set(parents)) != 1:
+            return False
         if len(self.edges) != len(known) - 1:
-            raise ValueError(
-                f"tree layout: {len(known)} nodes need {len(known) - 1} edges, "
-                f"got {len(self.edges)}"
-            )
+            return False
 
-        # Every node must reach the root, or there is a cycle hiding in a
-        # component that the parent-count check alone cannot see.
+        # A cycle can hide in a component the parent-count check cannot see.
         for start in known:
             seen: set[str] = set()
             node = start
             while node in parents:
                 if node in seen:
-                    raise ValueError("tree layout contains a cycle")
+                    return False
                 seen.add(node)
                 node = parents[node]
+        return True
 
-    def _check_chain(self, known: set[str]) -> None:
-        """A chain is a single path: one start, one end, no branching."""
+    def _is_chain(self, known: set[str]) -> bool:
+        """A chain is a single path: no branching, no merging."""
         outgoing: dict[str, int] = {}
         incoming: dict[str, int] = {}
         for edge in self.edges:
@@ -247,11 +356,10 @@ class GraphDiagram(_DiagramBase):
             incoming[edge.to] = incoming.get(edge.to, 0) + 1
 
         if any(count > 1 for count in outgoing.values()):
-            raise ValueError("chain layout: a node branches to more than one node")
+            return False
         if any(count > 1 for count in incoming.values()):
-            raise ValueError("chain layout: a node is reached from more than one node")
-        if self.edges and len(self.edges) != len(known) - 1:
-            raise ValueError("chain layout: edges do not form a single path")
+            return False
+        return not self.edges or len(self.edges) == len(known) - 1
 
 
 # ── plot ─────────────────────────────────────────────────────────────────────

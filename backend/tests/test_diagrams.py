@@ -251,6 +251,98 @@ def test_two_pieces_on_one_square_rejected():
         }]})
 
 
+# ---------------------------------------------------------------------------
+# Piece reachability. Every case below is a legal square, so nothing structural
+# rejects it — these exist because the live Chess course produced a bishop on
+# e2 highlighting a1, h8, a8, h1 and f5, none of which are on a diagonal.
+# ---------------------------------------------------------------------------
+
+def test_bishop_off_its_diagonals_rejected():
+    """The exact spec the live model produced. Drawable, plausible, and false."""
+    spec = {
+        **BOARD,
+        "id": "bishop", "title": "How a bishop moves",
+        "caption": "From e2 a bishop reaches these squares.",
+        "pieces": [{"at": "e2", "glyph": "B", "tone": "brand"}],
+        "highlight": ["a1", "h8", "a8", "h1", "c4", "f5"],
+    }
+    with pytest.raises(ValueError, match="unreachable"):
+        validate_diagrams({"diagrams": [spec]})
+
+
+def test_bishop_on_its_diagonals_accepted():
+    spec = {
+        **BOARD,
+        "pieces": [{"at": "e2", "glyph": "B", "tone": "brand"}],
+        "highlight": ["d1", "f1", "d3", "c4", "b5", "a6", "f3", "g4", "h5"],
+    }
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
+def test_a_subset_of_legal_moves_is_fine():
+    """Illustrating two of a knight's eight moves must not be rejected."""
+    spec = {**BOARD, "highlight": ["e6", "c6"]}
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
+def test_rook_off_its_lines_rejected():
+    spec = {
+        **BOARD,
+        "pieces": [{"at": "a1", "glyph": "R", "tone": "brand"}],
+        "highlight": ["a8", "h1", "d4"],
+    }
+    with pytest.raises(ValueError, match="unreachable"):
+        validate_diagrams({"diagrams": [spec]})
+
+
+def test_unicode_glyphs_are_checked_too():
+    spec = {
+        **BOARD,
+        "pieces": [{"at": "d4", "glyph": "♘", "tone": "brand"}],
+        "highlight": ["d5"],
+    }
+    with pytest.raises(ValueError, match="unreachable"):
+        validate_diagrams({"diagrams": [spec]})
+
+
+def test_a_pieces_own_square_may_be_highlighted():
+    spec = {**BOARD, "highlight": ["d4", "e6"]}
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
+def test_non_chess_glyphs_skip_the_check():
+    """A board used as a coordinate grid or matrix must stay unconstrained."""
+    spec = {
+        **BOARD,
+        "size": 4,
+        "pieces": [{"at": "a1", "glyph": "x", "tone": "brand"}],
+        "highlight": ["c3", "d4", "b2"],
+    }
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
+def test_pawns_skip_the_check():
+    """A pawn's move depends on colour and history, which is not knowable here."""
+    spec = {
+        **BOARD,
+        "pieces": [{"at": "e2", "glyph": "P", "tone": "brand"}],
+        "highlight": ["e3", "e4"],
+    }
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
+def test_two_pieces_allow_the_union_of_their_moves():
+    spec = {
+        **BOARD,
+        "pieces": [
+            {"at": "d4", "glyph": "N", "tone": "brand"},
+            {"at": "a1", "glyph": "R", "tone": "info"},
+        ],
+        "highlight": ["e6", "a8"],
+    }
+    assert len(validate_diagrams({"diagrams": [spec]})) == 1
+
+
 def test_edge_to_unknown_node_rejected():
     """The single most likely model error, and invisible once drawn."""
     spec = {**GRAPH, "edges": [{"from": "open", "to": "write"}]}
@@ -267,33 +359,57 @@ def test_duplicate_node_id_rejected():
         validate_diagrams({"diagrams": [spec]})
 
 
-def test_tree_layout_with_two_parents_rejected():
+# A layout is a presentation choice, not a claim about the world. When it does
+# not fit the data the data wins and the layout is downgraded to `layered`,
+# which draws branching and cyclic graphs correctly. Rejecting instead would
+# throw away sound nodes and edges over a stylistic mismatch.
+
+def test_tree_layout_with_two_parents_falls_back_to_layered():
     spec = {**TREE, "edges": [
         {"from": "n8", "to": "n3"},
         {"from": "n10", "to": "n3"},
     ]}
-    with pytest.raises(ValueError, match="more than one parent"):
-        validate_diagrams({"diagrams": [spec]})
+    out = validate_diagrams({"diagrams": [spec]})
+    assert out[0]["layout"] == "layered"
+    assert len(out[0]["edges"]) == 2
 
 
-def test_tree_layout_with_a_cycle_rejected():
-    """A cycle under a tree layout lays nodes on top of each other."""
+def test_tree_layout_with_a_cycle_falls_back_to_layered():
     spec = {**TREE, "nodes": [
         {"id": "a", "label": "a"}, {"id": "b", "label": "b"}, {"id": "c", "label": "c"},
     ], "edges": [
         {"from": "a", "to": "b"}, {"from": "b", "to": "c"}, {"from": "c", "to": "a"},
     ]}
-    with pytest.raises(ValueError, match="root|cycle"):
-        validate_diagrams({"diagrams": [spec]})
+    assert validate_diagrams({"diagrams": [spec]})[0]["layout"] == "layered"
 
 
-def test_chain_layout_that_branches_rejected():
+def test_chain_layout_that_branches_falls_back_to_layered():
+    """Seen live: the model asked for a chain, then described a branch."""
     spec = {**GRAPH, "edges": [
         {"from": "open", "to": "read"},
         {"from": "open", "to": "close"},
     ]}
-    with pytest.raises(ValueError, match="branches"):
-        validate_diagrams({"diagrams": [spec]})
+    assert validate_diagrams({"diagrams": [spec]})[0]["layout"] == "layered"
+
+
+def test_a_real_tree_keeps_its_tree_layout():
+    assert validate_diagrams({"diagrams": [TREE]})[0]["layout"] == "tree"
+
+
+def test_a_real_chain_keeps_its_chain_layout():
+    assert validate_diagrams({"diagrams": [GRAPH]})[0]["layout"] == "chain"
+
+
+def test_an_over_long_label_is_clipped_not_rejected():
+    """Length is a display concern; the renderer truncates far below this."""
+    spec = {**GRAPH, "nodes": [
+        {"id": "open", "label": "Proposal by John McCarthy, " * 6},
+        {"id": "read", "label": "read()"},
+        {"id": "close", "label": "close()"},
+    ]}
+    out = validate_diagrams({"diagrams": [spec]})
+    assert len(out[0]["nodes"][0]["label"]) == 80
+    assert out[0]["nodes"][0]["label"].endswith("…")
 
 
 def test_self_loop_rejected():

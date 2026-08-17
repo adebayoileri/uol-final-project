@@ -57,21 +57,31 @@ The ids in show and highlight must be elements that exist in the diagram: a squa
 Rules:
 - Everything must be about {lesson_title} specifically and must be factually correct.
 - If a diagram would be decoration rather than explanation, return an empty list instead.
-- Do not invent a structure you are unsure of.
+- Do not invent a structure you are unsure of. One correct diagram beats two where one is wrong.
+- On a board, the highlighted squares must be ones the piece can actually reach from where you placed it. A bishop moves only on diagonals, a rook only along a file or rank, a knight only in an L. Squares that do not match the piece's movement will be rejected and the lesson will get no diagram at all.
+- Say only what your fields show. If you highlight six squares, do not write "eight" in the caption.
 
-Output ONLY this JSON object — no other text:
+The object below shows the FORMAT only. Its subject is an example — do not copy its content, and do not produce a diagram about it unless this lesson is genuinely about that topic.
+
+Output ONLY a JSON object of this shape — no other text:
 
 {{
   "diagrams": [
     {{
-      "id": "knight-move",
-      "kind": "board",
-      "title": "How a knight moves",
-      "caption": "From d4 a knight reaches eight squares, each two along one axis and one along the other.",
-      "size": 8,
-      "labels": true,
-      "pieces": [{{"at": "d4", "glyph": "N", "tone": "brand"}}],
-      "highlight": ["e6", "f5", "f3", "e2", "c2", "b3", "b5", "c6"]
+      "id": "example-only",
+      "kind": "graph",
+      "title": "How a letter reaches an address",
+      "caption": "A letter is sorted once at each depot before it is delivered.",
+      "layout": "chain",
+      "nodes": [
+        {{"id": "post", "label": "Posted", "tone": "brand"}},
+        {{"id": "sort", "label": "Sorting depot", "tone": "neutral"}},
+        {{"id": "deliver", "label": "Delivered", "tone": "success"}}
+      ],
+      "edges": [
+        {{"from": "post", "to": "sort", "label": "collected", "directed": true}},
+        {{"from": "sort", "to": "deliver", "directed": true}}
+      ]
     }}
   ]
 }}
