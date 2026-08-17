@@ -115,7 +115,7 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
           transition={springDefault}
           onClick={isPlaying ? handlePause : handlePlay}
           disabled={isLoading}
-          className="bg-brand-500 hover:bg-brand-400 grid size-11 shrink-0 place-items-center rounded-full text-white transition-colors disabled:opacity-50"
+          className="bg-brand-500 hover:bg-brand-400 grid size-11 shrink-0 place-items-center rounded-full text-on-brand transition-colors disabled:opacity-50"
           aria-label={isPlaying ? 'Pause narration' : 'Play narration'}
         >
           {isLoading ? (
@@ -180,7 +180,7 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
                     className="bg-brand-500 absolute inset-0 rounded-sm"
                   />
                 )}
-                <span className={cn('relative', speed === s ? 'text-white' : 'text-fg-subtle')}>
+                <span className={cn('relative', speed === s ? 'text-on-brand' : 'text-fg-subtle')}>
                   {s}×
                 </span>
               </button>

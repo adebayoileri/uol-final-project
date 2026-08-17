@@ -151,7 +151,7 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
                 className={cn(
                   'text-callout max-w-[88%] rounded-lg px-3 py-2 leading-relaxed',
                   isUser
-                    ? 'bg-brand-500 text-white'
+                    ? 'bg-brand-500 text-on-brand'
                     : 'bg-surface-raised border-hairline text-fg-muted border',
                 )}
               >

@@ -77,7 +77,7 @@ export default function ReviewHub() {
           >
             Filters
             {activeFilterCount > 0 && (
-              <span className="bg-brand-500 text-eyebrow ml-1.5 rounded-full px-1.5 py-0.5 text-white tabular-nums">
+              <span className="bg-brand-500 text-eyebrow ml-1.5 rounded-full px-1.5 py-0.5 text-on-brand tabular-nums">
                 {activeFilterCount}
               </span>
             )}

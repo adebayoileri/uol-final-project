@@ -120,7 +120,7 @@ export function Segmented<T extends string>({
             className={cn(
               'flex-1 rounded-sm px-3 py-2 text-callout font-medium transition-colors duration-[--duration-fast]',
               active
-                ? 'bg-brand-500 text-white shadow-e1'
+                ? 'bg-brand-500 text-on-brand shadow-e1'
                 : 'text-fg-muted hover:text-fg hover:bg-surface-overlay',
             )}
           >

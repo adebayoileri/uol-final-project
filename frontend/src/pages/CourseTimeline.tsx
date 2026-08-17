@@ -41,7 +41,7 @@ function TimelineNode({
           transition={{ ...springDefault, delay: (index % 6) * 0.06 }}
           className={cn(
             'grid size-6 shrink-0 place-items-center rounded-full border-2',
-            status === 'done' && 'bg-success border-success text-canvas',
+            status === 'done' && 'bg-success border-success text-on-brand',
             status === 'current' && 'border-brand-400 bg-brand-500/20 text-brand-300',
             status === 'upcoming' && 'border-border bg-surface text-transparent',
           )}

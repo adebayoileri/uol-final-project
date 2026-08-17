@@ -136,7 +136,7 @@ export default function CompletionScreen() {
         >
           <IconBadge icon={Trophy} tone="success" size="xl" />
         </motion.div>
-        <h1 className="text-display-lg from-fg via-fg to-brand-300 mt-6 bg-linear-to-br bg-clip-text text-balance text-transparent">
+        <h1 className="text-display-lg text-fg from-fg via-fg to-gradient-accent mt-6 bg-linear-to-br bg-clip-text text-balance [-webkit-text-fill-color:transparent]">
           Course complete
         </h1>
         <p className="text-body-lg text-fg-muted mt-3">{course.title}</p>

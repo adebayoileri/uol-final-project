@@ -56,6 +56,34 @@
   --color-rate-good: #34d399;
   --color-rate-easy: #60a5fa;
 
+  /* ── Role tokens ──────────────────────────────────────────
+     Values a theme must be able to choose independently of the
+     ramps above, because their correct direction inverts. */
+
+  /* Text sitting on a saturated brand/semantic fill. Stays light in
+     both themes — the fill is dark purple either way. */
+  --color-on-brand: #ffffff;
+  /* Skeleton sweep. A white sheen only reads over a dark surface. */
+  --color-shimmer: rgb(255 255 255 / 0.045);
+  /* Primary button. Dark UI brightens on hover; light UI must darken. */
+  --color-brand-hover: #9575ff;
+  --color-brand-active: #6a3ce8;
+  /* The far stop of the display-heading gradient. */
+  --color-gradient-accent: #b39dff;
+  /* Home hero bloom. */
+  --color-hero-glow: #5730c4;
+  /* Syntax. brand-200/300 are the pale end of the ramp, chosen to sit
+     on near-black; light needs the opposite end. */
+  --color-code-keyword: #b39dff;
+  --color-code-fn: #cfc0ff;
+  /* Review heatmap, quietest → busiest. Direction flips per theme. */
+  --color-heat-1: #2e1a6b;
+  --color-heat-2: #5730c4;
+  --color-heat-3: #7c53f7;
+  --color-on-heat-1: #cfc0ff;
+  --color-on-heat-2: #f3efff;
+  --color-on-heat-3: #ffffff;
+
   /* ── Type: size + leading + tracking + weight as a set ── */
   --text-display-2xl: 3.5rem;
   --text-display-2xl--line-height: 1.02;
@@ -152,6 +180,153 @@
   }
 }
 
+/* ── Light theme ────────────────────────────────────────────────────────────
+   Dark lives in @theme above and is the bare :root default, so it is
+   byte-identical to before this file gained a second theme.
+
+   Light is applied through two selectors: the media query (following the OS)
+   and the attribute (an explicit choice). They MUST carry the same
+   declarations — edit both, or the toggle and the OS disagree.
+
+   Why the values are not a simple inversion:
+   - The surface ramp inverts in luminance but keeps its role. `surface` is
+     white so cards lift off a grey `canvas`; `surface-raised` goes slightly
+     DARKER, because it means "interactive", not "brighter".
+   - Semantic hues are deepened. The dark palette's mint and amber glow
+     against near-black; the same hues at 8–15% over white are colourless
+     washes. Deepening them is what keeps ~67 tint utilities legible without
+     touching a single className.
+   - Shadows drop from 40–70% black to single digits.
+   -------------------------------------------------------------------------- */
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+
+    --color-canvas: #f6f6f9;
+    --color-canvas-elevated: #eeeef4;
+    --color-surface: #ffffff;
+    --color-surface-raised: #f1f1f6;
+    --color-surface-overlay: #ffffff;
+    --color-glass: rgb(255 255 255 / 0.78);
+    --color-glass-edge: rgb(16 16 32 / 0.10);
+
+    --color-hairline: #e6e6ee;
+    --color-border: #d7d7e2;
+    --color-border-strong: #b9b9c9;
+
+    --color-fg: #16161f;
+    --color-fg-muted: #4a4a5c;
+    --color-fg-subtle: #6a6a80;
+    --color-fg-faint: #8a8a9e;
+    --color-fg-invert: #ffffff;
+
+    /* 200 and 300 are only ever used as text, 400 as fill and text, 500
+       only ever as a fill — so the text steps darken for light while 500
+       stays the saturated brand fill that carries --color-on-brand. */
+    --color-brand-200: #5730c4;
+    --color-brand-300: #7c53f7;
+    --color-brand-400: #6a3ce8;
+
+    --color-success: #059669;
+    --color-success-dim: #d1fae5;
+    --color-warn: #b45309;
+    --color-warn-dim: #fef3c7;
+    --color-danger: #dc2626;
+    --color-danger-dim: #fee2e2;
+    --color-info: #2563eb;
+    --color-info-dim: #dbeafe;
+
+    --color-rate-again: #dc2626;
+    --color-rate-hard: #c2410c;
+    --color-rate-good: #059669;
+    --color-rate-easy: #2563eb;
+
+    --color-shimmer: rgb(16 16 32 / 0.06);
+    --color-brand-hover: #6a3ce8;
+    --color-brand-active: #5730c4;
+    --color-gradient-accent: #6a3ce8;
+    --color-hero-glow: #9575ff;
+    --color-code-keyword: #6a3ce8;
+    --color-code-fn: #5730c4;
+
+    --color-heat-1: #e7dfff;
+    --color-heat-2: #b39dff;
+    --color-heat-3: #7c53f7;
+    --color-on-heat-1: #442699;
+    --color-on-heat-2: #190e3c;
+    --color-on-heat-3: #ffffff;
+
+    --shadow-e1: 0 1px 2px rgb(16 16 32 / 0.06);
+    --shadow-e2: 0 2px 8px -2px rgb(16 16 32 / 0.10), 0 1px 2px rgb(16 16 32 / 0.06);
+    --shadow-e3: 0 12px 28px -8px rgb(16 16 32 / 0.14), 0 2px 6px rgb(16 16 32 / 0.08);
+    --shadow-e4: 0 28px 60px -16px rgb(16 16 32 / 0.18), 0 4px 12px rgb(16 16 32 / 0.10);
+    --shadow-inset-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.9);
+  }
+}
+
+/* Same declarations as above — an explicit choice, so no media query. */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-canvas: #f6f6f9;
+  --color-canvas-elevated: #eeeef4;
+  --color-surface: #ffffff;
+  --color-surface-raised: #f1f1f6;
+  --color-surface-overlay: #ffffff;
+  --color-glass: rgb(255 255 255 / 0.78);
+  --color-glass-edge: rgb(16 16 32 / 0.10);
+
+  --color-hairline: #e6e6ee;
+  --color-border: #d7d7e2;
+  --color-border-strong: #b9b9c9;
+
+  --color-fg: #16161f;
+  --color-fg-muted: #4a4a5c;
+  --color-fg-subtle: #6a6a80;
+  --color-fg-faint: #8a8a9e;
+  --color-fg-invert: #ffffff;
+
+  --color-brand-200: #5730c4;
+  --color-brand-300: #7c53f7;
+  --color-brand-400: #6a3ce8;
+
+  --color-success: #059669;
+  --color-success-dim: #d1fae5;
+  --color-warn: #b45309;
+  --color-warn-dim: #fef3c7;
+  --color-danger: #dc2626;
+  --color-danger-dim: #fee2e2;
+  --color-info: #2563eb;
+  --color-info-dim: #dbeafe;
+
+  --color-rate-again: #dc2626;
+  --color-rate-hard: #c2410c;
+  --color-rate-good: #059669;
+  --color-rate-easy: #2563eb;
+
+  --color-shimmer: rgb(16 16 32 / 0.06);
+  --color-brand-hover: #6a3ce8;
+  --color-brand-active: #5730c4;
+  --color-gradient-accent: #6a3ce8;
+  --color-hero-glow: #9575ff;
+  --color-code-keyword: #6a3ce8;
+  --color-code-fn: #5730c4;
+
+  --color-heat-1: #e7dfff;
+  --color-heat-2: #b39dff;
+  --color-heat-3: #7c53f7;
+  --color-on-heat-1: #442699;
+  --color-on-heat-2: #190e3c;
+  --color-on-heat-3: #ffffff;
+
+  --shadow-e1: 0 1px 2px rgb(16 16 32 / 0.06);
+  --shadow-e2: 0 2px 8px -2px rgb(16 16 32 / 0.10), 0 1px 2px rgb(16 16 32 / 0.06);
+  --shadow-e3: 0 12px 28px -8px rgb(16 16 32 / 0.14), 0 2px 6px rgb(16 16 32 / 0.08);
+  --shadow-e4: 0 28px 60px -16px rgb(16 16 32 / 0.18), 0 4px 12px rgb(16 16 32 / 0.10);
+  --shadow-inset-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.9);
+}
+
 @layer base {
   :root {
     color-scheme: dark;
@@ -227,7 +402,7 @@
     margin-block: 1.25rem 0.375rem;
   }
   .prose-lesson a {
-    color: var(--color-brand-300);
+    color: var(--color-code-keyword);
     text-decoration: underline;
     text-underline-offset: 3px;
   }
@@ -249,7 +424,7 @@
   .token.prolog,
   .token.doctype,
   .token.cdata {
-    color: var(--color-fg-faint);
+    color: var(--color-fg-subtle);
     font-style: italic;
   }
   .token.punctuation {
@@ -282,12 +457,12 @@
   .token.atrule,
   .token.attr-value,
   .token.keyword {
-    color: var(--color-brand-300);
+    color: var(--color-code-keyword);
     font-weight: 500;
   }
   .token.function,
   .token.class-name {
-    color: var(--color-brand-200);
+    color: var(--color-code-fn);
   }
   .token.regex,
   .token.important,
@@ -326,6 +501,9 @@
   }
 }
 
+/* Raising contrast means moving text and lines AWAY from the background, so
+   the direction is opposite per theme — the original values here were
+   dark-only and would have reduced contrast on light. */
 @media (prefers-contrast: more) {
   :root {
     --color-fg-muted: #d8d8e4;
@@ -339,5 +517,23 @@
   }
   .prose-lesson {
     color: var(--color-fg);
+  }
+}
+
+@media (prefers-contrast: more) and (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --color-fg-muted: #26263a;
+    --color-fg-subtle: #3a3a52;
+    --color-border: #9a9aae;
+    --color-hairline: #c4c4d4;
+  }
+}
+
+@media (prefers-contrast: more) {
+  :root[data-theme="light"] {
+    --color-fg-muted: #26263a;
+    --color-fg-subtle: #3a3a52;
+    --color-border: #9a9aae;
+    --color-hairline: #c4c4d4;
   }
 }

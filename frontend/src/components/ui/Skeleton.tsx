@@ -2,7 +2,7 @@ import { cn } from '../../lib/cn'
 
 const SHIMMER =
   'relative overflow-hidden bg-surface-raised before:absolute before:inset-0 ' +
-  'before:animate-shimmer before:bg-[linear-gradient(90deg,transparent,rgb(255_255_255/0.045),transparent)] ' +
+  'before:animate-shimmer before:bg-[linear-gradient(90deg,transparent,var(--color-shimmer),transparent)] ' +
   'before:bg-[length:180%_100%]'
 
 interface SkeletonProps {

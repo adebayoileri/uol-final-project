@@ -235,7 +235,7 @@ function PronunciationDrill() {
                 disabled={isProcessing || !activePhrase}
                 aria-label={isRecording ? 'Stop recording' : 'Start recording'}
                 className={cn(
-                  'relative grid size-16 place-items-center rounded-full text-white transition-colors disabled:opacity-50',
+                  'relative grid size-16 place-items-center rounded-full text-on-brand transition-colors disabled:opacity-50',
                   isRecording ? 'bg-danger' : 'bg-brand-500 hover:bg-brand-400',
                 )}
               >

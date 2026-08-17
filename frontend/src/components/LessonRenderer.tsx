@@ -75,7 +75,7 @@ export default function LessonRenderer({ content }: LessonRendererProps) {
             }
             return (
               <code
-                className="bg-surface-raised text-brand-200 border-hairline rounded border px-1.5 py-0.5 font-mono text-[0.9em]"
+                className="bg-surface-raised text-code-fn border-hairline rounded border px-1.5 py-0.5 font-mono text-[0.9em]"
                 {...props}
               >
                 {children}

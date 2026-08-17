@@ -7,10 +7,30 @@
       name="description"
       content="SuperLearned turns a learning goal into a structured course, then keeps it in memory with FSRS spaced repetition."
     />
+    <!-- Both supported, so form controls and scrollbars follow the active theme. -->
+    <meta name="color-scheme" content="dark light" />
+    <!-- Media-qualified pair covers the system case with no JS. The unqualified
+         one is what ThemeProvider rewrites when the user overrides. -->
+    <meta name="theme-color" content="#08080d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f6f6f9" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#08080d" />
-    <meta name="color-scheme" content="dark" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <title>SuperLearned — AI courses with spaced repetition</title>
+    <script>
+      // Blocking on purpose: React's state init runs after the HTML parses, so
+      // without this the wrong background paints first and every load flashes.
+      // Key must match THEME_STORAGE_KEY in src/theme/ThemeContext.tsx.
+      (function () {
+        try {
+          var t = localStorage.getItem('theme')
+          if (t === 'light' || t === 'dark') {
+            document.documentElement.setAttribute('data-theme', t)
+          }
+        } catch (e) {
+          /* storage unavailable — fall back to the OS preference */
+        }
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

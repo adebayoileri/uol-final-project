@@ -10,9 +10,9 @@ const DAY_LABELS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
 function cellTone(count: number, max: number) {
   if (count === 0) return 'bg-surface-raised text-fg-faint'
   const ratio = max > 0 ? count / max : 0
-  if (ratio > 0.66) return 'bg-brand-500 text-white'
-  if (ratio > 0.33) return 'bg-brand-700 text-brand-50'
-  return 'bg-brand-900 text-brand-200'
+  if (ratio > 0.66) return 'bg-heat-3 text-on-heat-3'
+  if (ratio > 0.33) return 'bg-heat-2 text-on-heat-2'
+  return 'bg-heat-1 text-on-heat-1'
 }
 
 interface ReviewCalendarProps {

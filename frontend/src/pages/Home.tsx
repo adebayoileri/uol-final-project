@@ -90,7 +90,7 @@ export default function Home() {
           vestibular hazard, so it does not animate. */}
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 -top-32 -z-10 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,var(--color-brand-700)_0%,transparent_70%)] opacity-25 blur-3xl"
+        className="pointer-events-none absolute inset-x-0 -top-32 -z-10 h-72 bg-[radial-gradient(60%_100%_at_50%_0%,var(--color-hero-glow)_0%,transparent_70%)] opacity-25 blur-3xl"
       />
 
       <motion.div
@@ -101,7 +101,7 @@ export default function Home() {
       >
         <motion.h1
           variants={listItem}
-          className="text-display-xl md:text-display-2xl text-balance bg-linear-to-br from-fg via-fg to-brand-300 bg-clip-text text-transparent"
+          className="text-display-xl md:text-display-2xl text-balance text-fg bg-linear-to-br from-fg via-fg to-gradient-accent bg-clip-text [-webkit-text-fill-color:transparent]"
         >
           {hasCourses ? 'Start a new goal' : 'Learn anything, and actually keep it'}
         </motion.h1>
