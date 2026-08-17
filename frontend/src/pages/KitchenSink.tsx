@@ -34,6 +34,8 @@ import {
   useToast,
 } from '../components/ui'
 import type { Tone } from '../components/ui'
+import Diagram from '../components/diagram/Diagram'
+import { SAMPLE_DIAGRAMS } from '../components/diagram/samples'
 
 const TONES: Tone[] = ['brand', 'success', 'warn', 'danger', 'info', 'neutral']
 
@@ -260,6 +262,25 @@ export default function KitchenSink() {
           <Card interactive padding="lg">
             <p className="text-callout text-fg-muted">interactive (hover)</p>
           </Card>
+        </div>
+      </section>
+
+      <section className="space-y-4">
+        <SectionHeading
+          title="Diagrams"
+          description="Every kind, layout and series type, from handwritten specs — so a renderer bug is distinguishable from a model one."
+        />
+        <div className="grid gap-4 lg:grid-cols-2">
+          {SAMPLE_DIAGRAMS.map((spec) => (
+            <div key={spec.id} className="space-y-2">
+              <p className="text-eyebrow text-fg-faint uppercase">
+                {spec.kind}
+                {spec.kind === 'graph' && ` · ${spec.layout}`}
+                {spec.steps.length > 0 && ` · ${spec.steps.length} steps`}
+              </p>
+              <Diagram spec={spec} />
+            </div>
+          ))}
         </div>
       </section>
 

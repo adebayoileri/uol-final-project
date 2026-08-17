@@ -1,0 +1,231 @@
+import type { DiagramSpec } from '../../api'
+
+/**
+ * Handwritten specs covering every kind, layout and series type.
+ *
+ * These exist so the renderers can be checked without the model in the loop.
+ * A wrong picture has two possible causes — the spec was wrong or the drawing
+ * was wrong — and from a lesson page they look identical. Pinning the spec is
+ * what separates them, and it is why these are checked in rather than typed
+ * into a console once.
+ *
+ * They are also the light/dark and reduced-motion test surface: every kind on
+ * one page, so a token that reads on black and vanishes on white shows up.
+ */
+export const SAMPLE_DIAGRAMS: DiagramSpec[] = [
+  {
+    id: 'knight-move',
+    kind: 'board',
+    title: 'How a knight moves',
+    caption: 'From d4 a knight reaches eight squares, each two along one axis and one along the other.',
+    size: 8,
+    labels: true,
+    pieces: [{ at: 'd4', glyph: 'N', tone: 'brand' }],
+    highlight: ['e6', 'f5', 'f3', 'e2', 'c2', 'b3', 'b5', 'c6'],
+    steps: [
+      { label: 'The knight starts on d4.', show: ['d4'], highlight: ['d4'] },
+      { label: 'Two squares up, one across: e6 and c6.', show: ['e6', 'c6'], highlight: ['e6', 'c6'] },
+      { label: 'Two across, one up: f5 and b5.', show: ['f5', 'b5'], highlight: ['f5', 'b5'] },
+      {
+        label: 'The same four again, mirrored downwards.',
+        show: ['f3', 'e2', 'c2', 'b3'],
+        highlight: ['f3', 'e2', 'c2', 'b3'],
+      },
+    ],
+  },
+  {
+    id: 'file-io',
+    kind: 'graph',
+    title: 'Reading a file',
+    caption: 'Every read follows the same three stages, and the handle must be released at the end.',
+    layout: 'chain',
+    nodes: [
+      { id: 'open', label: 'open(path)', tone: 'brand' },
+      { id: 'read', label: 'read()', tone: 'neutral' },
+      { id: 'close', label: 'close()', tone: 'success' },
+    ],
+    edges: [
+      { from: 'open', to: 'read', label: 'handle', directed: true },
+      { from: 'read', to: 'close', label: null, directed: true },
+    ],
+    steps: [],
+  },
+  {
+    id: 'bst',
+    kind: 'graph',
+    title: 'A binary search tree',
+    caption: 'Every value left of a node is smaller than it, and every value right of it is larger.',
+    layout: 'tree',
+    nodes: [
+      { id: 'n8', label: '8', tone: 'brand' },
+      { id: 'n3', label: '3', tone: 'neutral' },
+      { id: 'n10', label: '10', tone: 'neutral' },
+      { id: 'n1', label: '1', tone: 'neutral' },
+      { id: 'n6', label: '6', tone: 'neutral' },
+      { id: 'n14', label: '14', tone: 'neutral' },
+    ],
+    edges: [
+      { from: 'n8', to: 'n3', label: null, directed: true },
+      { from: 'n8', to: 'n10', label: null, directed: true },
+      { from: 'n3', to: 'n1', label: null, directed: true },
+      { from: 'n3', to: 'n6', label: null, directed: true },
+      { from: 'n10', to: 'n14', label: null, directed: true },
+    ],
+    steps: [
+      { label: 'Searching for 6: start at the root.', show: [], highlight: ['n8'] },
+      { label: '6 is less than 8, so go left.', show: [], highlight: ['n8->n3', 'n3'] },
+      { label: '6 is greater than 3, so go right — and there it is.', show: [], highlight: ['n3->n6', 'n6'] },
+    ],
+  },
+  {
+    id: 'ml-pipeline',
+    kind: 'graph',
+    title: 'A training pipeline',
+    caption: 'Features feed the model, and evaluation feeds back into feature selection.',
+    layout: 'layered',
+    nodes: [
+      { id: 'raw', label: 'Raw data', tone: 'neutral' },
+      { id: 'feat', label: 'Features', tone: 'info' },
+      { id: 'train', label: 'Train', tone: 'brand' },
+      { id: 'eval', label: 'Evaluate', tone: 'warn' },
+    ],
+    edges: [
+      { from: 'raw', to: 'feat', label: null, directed: true },
+      { from: 'feat', to: 'train', label: null, directed: true },
+      { from: 'train', to: 'eval', label: null, directed: true },
+      { from: 'eval', to: 'feat', label: 'refine', directed: true },
+    ],
+    steps: [],
+  },
+  {
+    id: 'sigmoid',
+    kind: 'plot',
+    title: 'The sigmoid function',
+    caption: 'It squashes any real number into the range zero to one, crossing a half at the origin.',
+    x_label: 'z',
+    y_label: 'σ(z)',
+    x_range: [-6, 6],
+    y_range: [0, 1],
+    series: [
+      {
+        id: 'sig',
+        label: 'σ(z)',
+        tone: 'brand',
+        type: 'function',
+        fn: { family: 'sigmoid', params: { k: 1 } },
+        points: null,
+      },
+    ],
+    markers: [{ id: 'mid', at: [0, 0.5], label: 'σ(0) = 0.5' }],
+    steps: [],
+  },
+  {
+    id: 'normal-vs-linear',
+    kind: 'plot',
+    title: 'Two families on one axis',
+    caption: 'A normal density and a straight line, shown together to compare their shapes.',
+    x_label: 'x',
+    y_label: 'density',
+    x_range: [-4, 4],
+    y_range: null,
+    series: [
+      {
+        id: 'norm',
+        label: 'Normal',
+        tone: 'brand',
+        type: 'function',
+        fn: { family: 'normal', params: { mu: 0, sigma: 1 } },
+        points: null,
+      },
+      {
+        id: 'lin',
+        label: 'Linear',
+        tone: 'info',
+        type: 'function',
+        fn: { family: 'linear', params: { m: 0.05, c: 0.2 } },
+        points: null,
+      },
+    ],
+    markers: [],
+    steps: [
+      { label: 'The normal density peaks at its mean.', show: ['norm'], highlight: ['norm'] },
+      { label: 'A straight line, for contrast.', show: ['lin'], highlight: ['lin'] },
+    ],
+  },
+  {
+    id: 'scatter',
+    kind: 'plot',
+    title: 'Observed points',
+    caption: 'Seven measurements, rising roughly linearly with a visible outlier.',
+    x_label: 'hours',
+    y_label: 'score',
+    x_range: [0, 8],
+    y_range: [0, 100],
+    series: [
+      {
+        id: 'obs',
+        label: 'Observations',
+        tone: 'success',
+        type: 'points',
+        fn: null,
+        points: [
+          [1, 20],
+          [2, 32],
+          [3, 41],
+          [4, 55],
+          [5, 61],
+          [6, 78],
+          [7, 40],
+        ],
+      },
+    ],
+    markers: [{ id: 'out', at: [7, 40], label: 'outlier' }],
+    steps: [],
+  },
+  {
+    id: 'right-triangle',
+    kind: 'geometry',
+    title: 'A 3-4-5 triangle',
+    caption: 'Sides of 3, 4 and 5 always meet at a right angle — the smallest Pythagorean triple.',
+    shape: 'triangle',
+    vertices: ['A', 'B', 'C'],
+    sides: [3, 4, 5],
+    radius: null,
+    show_sides: true,
+    show_angles: true,
+    annotations: [],
+    steps: [
+      { label: 'Start with the two shorter sides.', show: ['AB', 'BC'], highlight: ['AB'] },
+      { label: 'The longest side closes the shape.', show: ['CA'], highlight: ['CA'] },
+      { label: 'The angle opposite it is exactly 90°.', show: [], highlight: ['angle:B'] },
+    ],
+  },
+  {
+    id: 'hexagon',
+    kind: 'geometry',
+    title: 'A regular hexagon',
+    caption: 'Six equal sides, and every interior angle is 120 degrees.',
+    shape: 'polygon',
+    vertices: ['A', 'B', 'C', 'D', 'E', 'F'],
+    sides: [],
+    radius: null,
+    show_sides: false,
+    show_angles: true,
+    annotations: [],
+    steps: [],
+  },
+  {
+    id: 'circle-r',
+    kind: 'geometry',
+    title: 'A circle and its radius',
+    caption: 'Every point on the circle sits the same distance from the centre.',
+    shape: 'circle',
+    vertices: [],
+    sides: [],
+    radius: 5,
+    show_sides: true,
+    show_angles: false,
+    annotations: [{ at: 'center', text: 'centre' }],
+    steps: [],
+  },
+]

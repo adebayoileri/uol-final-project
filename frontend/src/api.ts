@@ -248,6 +248,127 @@ export interface LessonEnrichResponse {
   content: LessonContent | null;
 }
 
+// ── Diagrams ────────────────────────────────────────────────────────────────
+// The model emits meaning, never geometry: it names a kind and fills semantic
+// fields, and the renderers under components/diagram compute every coordinate.
+// The backend validates each spec before storing it (app/diagram_spec.py), so
+// by the time one arrives here its references already resolve.
+
+export type DiagramTone = "brand" | "success" | "warn" | "danger" | "info" | "neutral";
+
+/** One frame of a staged reveal. Ids name elements of the parent diagram. */
+export interface DiagramStep {
+  label: string;
+  show: string[];
+  highlight: string[];
+}
+
+interface DiagramBase {
+  id: string;
+  title: string;
+  caption: string;
+  steps: DiagramStep[];
+}
+
+export interface BoardPiece {
+  at: string;
+  glyph: string;
+  tone: DiagramTone;
+}
+
+/** A square grid: chessboard, coordinate grid, matrix. Element ids are squares. */
+export interface BoardDiagram extends DiagramBase {
+  kind: "board";
+  size: number;
+  pieces: BoardPiece[];
+  highlight: string[];
+  labels: boolean;
+}
+
+export interface GraphNode {
+  id: string;
+  label: string;
+  tone: DiagramTone;
+}
+
+export interface GraphEdge {
+  from: string;
+  to: string;
+  label: string | null;
+  directed: boolean;
+}
+
+/** Nodes and edges. One payload, four layouts — only the geometry differs. */
+export interface GraphDiagram extends DiagramBase {
+  kind: "graph";
+  layout: "chain" | "tree" | "layered" | "circular";
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+}
+
+export type PlotFunctionFamily =
+  | "linear"
+  | "quadratic"
+  | "exponential"
+  | "sigmoid"
+  | "sine"
+  | "normal";
+
+/** A named family with numeric params — never an expression string to evaluate. */
+export interface PlotFunction {
+  family: PlotFunctionFamily;
+  params: Record<string, number>;
+}
+
+export interface PlotSeries {
+  id: string;
+  label: string;
+  tone: DiagramTone;
+  type: "function" | "points" | "bars";
+  fn: PlotFunction | null;
+  points: [number, number][] | null;
+}
+
+export interface PlotMarker {
+  id: string;
+  at: [number, number];
+  label: string;
+}
+
+export interface PlotDiagram extends DiagramBase {
+  kind: "plot";
+  x_label: string;
+  y_label: string;
+  x_range: [number, number];
+  y_range: [number, number] | null;
+  series: PlotSeries[];
+  markers: PlotMarker[];
+}
+
+export interface GeometryAnnotation {
+  at: string;
+  text: string;
+}
+
+/** Positioned from side lengths, not coordinates. */
+export interface GeometryDiagram extends DiagramBase {
+  kind: "geometry";
+  shape: "triangle" | "rectangle" | "polygon" | "circle";
+  vertices: string[];
+  sides: number[];
+  radius: number | null;
+  show_sides: boolean;
+  show_angles: boolean;
+  annotations: GeometryAnnotation[];
+}
+
+export type DiagramSpec = BoardDiagram | GraphDiagram | PlotDiagram | GeometryDiagram;
+
+export interface LessonDiagramResponse {
+  status: "cached" | "generated";
+  diagrams: DiagramSpec[];
+}
+
 export interface LessonDetailResponse {
   id: string;
   order_index: number;
@@ -259,10 +380,19 @@ export interface LessonDetailResponse {
   questions: QuestionResponse[];
   /** Null until the lesson has been enriched. */
   content: LessonContent | null;
+  /**
+   * Null until generation has been attempted. An empty array is a real answer:
+   * the model was asked and said no diagram helps this lesson.
+   */
+  diagrams: DiagramSpec[] | null;
 }
 
 export function enrichLesson(lessonId: string): Promise<LessonEnrichResponse> {
   return request<LessonEnrichResponse>(`/lessons/${lessonId}/enrich`, { method: "POST" });
+}
+
+export function generateDiagrams(lessonId: string): Promise<LessonDiagramResponse> {
+  return request<LessonDiagramResponse>(`/lessons/${lessonId}/diagram`, { method: "POST" });
 }
 
 export function getCourses(): Promise<CourseSummaryResponse[]> {

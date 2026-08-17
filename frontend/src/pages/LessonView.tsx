@@ -4,9 +4,11 @@ import { ArrowLeft, Clock, Target } from 'lucide-react'
 import {
   completeLesson,
   enrichLesson,
+  generateDiagrams,
   generateQuestions,
   getCourse,
   getLessonDetail,
+  type DiagramSpec,
   type LessonContent,
   type LessonDetailResponse,
 } from '../api'
@@ -44,6 +46,29 @@ export default function LessonView() {
   // Keyed by lessonId so StrictMode's double-invoked effect fires enrichment once.
   const enrichAttempted = useRef<string | null>(null)
 
+  const [diagrams, setDiagrams] = useState<DiagramSpec[] | null>(null)
+  const [diagramsLoading, setDiagramsLoading] = useState(false)
+  const diagramAttempted = useRef<string | null>(null)
+
+  /**
+   * Runs only once the lesson has content, because the backend 409s otherwise —
+   * a diagram illustrates the key concepts, and one drawn from a title alone is
+   * decoration. Failure is silent: an empty result and a failed call look the
+   * same to the reader, and both are acceptable.
+   */
+  const runDiagrams = useCallback(async () => {
+    if (!lessonId) return
+    setDiagramsLoading(true)
+    try {
+      const res = await generateDiagrams(lessonId)
+      setDiagrams(res.diagrams)
+    } catch {
+      setDiagrams([])
+    } finally {
+      setDiagramsLoading(false)
+    }
+  }, [lessonId])
+
   const runEnrich = useCallback(async () => {
     if (!lessonId) return
     setEnrichState('loading')
@@ -51,12 +76,15 @@ export default function LessonView() {
       const res = await enrichLesson(lessonId)
       setContent(res.content)
       setEnrichState(res.content ? 'ready' : 'unavailable')
+      // Chained rather than parallel: the diagram call needs the content this
+      // one just wrote, so firing both at once would guarantee a 409.
+      if (res.content) void runDiagrams()
     } catch {
       // Deliberately no toast: the page rendered fine and this is a
       // progressive enhancement. The retry lives in the body, in context.
       setEnrichState('unavailable')
     }
-  }, [lessonId])
+  }, [lessonId, runDiagrams])
 
   const fetchLesson = useCallback(() => {
     if (!courseId || !lessonId) return Promise.resolve()
@@ -81,12 +109,23 @@ export default function LessonView() {
     if (lesson.content) {
       setContent(lesson.content)
       setEnrichState('ready')
+
+      // Already-enriched lessons skip runEnrich entirely, so the chained call
+      // inside it never fires and diagrams have to be picked up here. null
+      // means never attempted; an empty array is a cached "none needed".
+      if (lesson.diagrams !== null) {
+        setDiagrams(lesson.diagrams)
+      } else if (diagramAttempted.current !== lessonId) {
+        diagramAttempted.current = lessonId
+        void runDiagrams()
+      }
       return
     }
     if (enrichAttempted.current === lessonId) return
     enrichAttempted.current = lessonId
+    diagramAttempted.current = lessonId
     void runEnrich()
-  }, [lesson, lessonId, runEnrich])
+  }, [lesson, lessonId, runEnrich, runDiagrams])
 
   async function handleGenerate() {
     if (!lessonId) return
@@ -194,6 +233,8 @@ export default function LessonView() {
             content={content}
             state={enrichState}
             onRetry={runEnrich}
+            diagrams={diagrams}
+            diagramsLoading={diagramsLoading}
           />
 
           <section className="space-y-4">

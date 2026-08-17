@@ -1,8 +1,9 @@
-import { AlertTriangle, HelpCircle, Lightbulb, Wrench } from 'lucide-react'
-import type { LessonContent } from '../../api'
+import { AlertTriangle, HelpCircle, Lightbulb, Shapes, Wrench } from 'lucide-react'
+import type { DiagramSpec, LessonContent } from '../../api'
 import LessonRenderer from '../LessonRenderer'
 import CodeBlock from '../CodeBlock'
 import Callout from '../Callout'
+import Diagram from '../diagram/Diagram'
 import { Button, Card, IconBadge, Skeleton } from '../ui'
 
 export type EnrichState = 'idle' | 'loading' | 'ready' | 'unavailable'
@@ -12,6 +13,9 @@ interface LessonBodyProps {
   content: LessonContent | null
   state: EnrichState
   onRetry: () => void
+  /** Null until generation has been attempted; empty means none was needed. */
+  diagrams: DiagramSpec[] | null
+  diagramsLoading: boolean
 }
 
 function Section({
@@ -62,7 +66,14 @@ function EnrichingSkeleton() {
  * The prose summary renders immediately and is never gated behind enrichment;
  * the deep content is a progressive enhancement layered underneath it.
  */
-export default function LessonBody({ description, content, state, onRetry }: LessonBodyProps) {
+export default function LessonBody({
+  description,
+  content,
+  state,
+  onRetry,
+  diagrams,
+  diagramsLoading,
+}: LessonBodyProps) {
   return (
     <div className="space-y-10">
       {description.trim() && <LessonRenderer content={description} />}
@@ -84,6 +95,27 @@ export default function LessonBody({ description, content, state, onRetry }: Les
                       </p>
                     )}
                   </Card>
+                ))}
+              </div>
+            </Section>
+          )}
+
+          {/* Between the concepts and the worked example on purpose: a diagram
+              explains the idea, the worked example then applies it. Absent and
+              failed both render as silence — a diagram is an enhancement, and
+              an apology for a missing one costs more attention than it saves. */}
+          {diagramsLoading && (
+            <section className="space-y-3" aria-busy="true" aria-label="Drawing a diagram">
+              <Skeleton variant="title" width="7rem" />
+              <Skeleton variant="block" height="14rem" />
+            </section>
+          )}
+
+          {diagrams && diagrams.length > 0 && (
+            <Section icon={Shapes} title={diagrams.length > 1 ? 'Diagrams' : 'Diagram'} tone="brand">
+              <div className="space-y-4">
+                {diagrams.map((spec) => (
+                  <Diagram key={spec.id} spec={spec} />
                 ))}
               </div>
             </Section>
