@@ -5,7 +5,11 @@ interface LogoProps {
   className?: string
 }
 
-/** Same artwork as public/favicon.svg, so the tab and the nav agree. */
+/**
+ * Same artwork as public/favicon.svg, so the tab and the nav agree. The tile
+ * is a fixed brand mark in both themes — hence --color-logo-*, which hold
+ * still, rather than the brand ramp, which retunes for text contrast on light.
+ */
 export default function Logo({ size = 28, className }: LogoProps) {
   return (
     <svg
@@ -17,8 +21,8 @@ export default function Logo({ size = 28, className }: LogoProps) {
     >
       <defs>
         <linearGradient id="logo-grad" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="var(--color-brand-400)" />
-          <stop offset="1" stopColor="var(--color-brand-600)" />
+          <stop offset="0" stopColor="var(--color-logo-from)" />
+          <stop offset="1" stopColor="var(--color-logo-to)" />
         </linearGradient>
       </defs>
       <rect width="32" height="32" rx="8" fill="url(#logo-grad)" />

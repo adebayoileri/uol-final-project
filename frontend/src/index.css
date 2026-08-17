@@ -190,7 +190,18 @@
    `shadow-<color>` modifier. Nothing uses either combination.
    -------------------------------------------------------------------------- */
 
+/* The logo tile is a fixed brand mark, not themed UI: it must match
+   public/favicon.svg, which inlines these two values as literals. It gets its
+   own tokens because the brand ramp does NOT hold still — brand-200/300/400
+   darken on light so brand-coloured TEXT stays legible, and pointing the tile
+   at brand-400/600 collapsed it to a flat #6a3ce8 with no gradient at all.
+   Change these two and public/favicon.svg together, or the tab and the nav
+   silently disagree. Declared here rather than in @theme so they cannot be
+   pruned: their only consumer is a var() in Logo.tsx, not a utility class. */
 :root {
+  --color-logo-from: #9575ff;
+  --color-logo-to: #6a3ce8;
+
   --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-e2: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
   --shadow-e3: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
