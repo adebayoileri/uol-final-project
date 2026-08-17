@@ -6,8 +6,10 @@ from fsrs import Card as FSRSCard, Rating, Scheduler
 from sqlalchemy import case, func
 from sqlalchemy.orm import Session
 
+from app.auth.deps import current_user
+from app.auth.ownership import get_owned_card, owned_course_ids
 from app.database import get_db
-from app.models import Card, Course, Review
+from app.models import Card, Course, Review, User
 from app.schemas import (
     CardResponse,
     GradeRequest,
@@ -53,6 +55,7 @@ def _parse_date(value: str | None, *, end_of_day: bool = False) -> datetime | No
 
 def _apply_card_filters(
     query,
+    user_id: str,
     course_id: str | None,
     created_from: str | None,
     created_to: str | None,
@@ -69,6 +72,9 @@ def _apply_card_filters(
     normalised UTC ISO, which is the same assumption `Card.due <= now_iso`
     has always relied on. `Card.created_at` is a real DATETIME.
     """
+    # Always scope to the caller's courses first. A NULL course_id fails the
+    # IN() and is dropped, which is the direction we want it to fail.
+    query = query.filter(Card.course_id.in_(owned_course_ids(user_id)))
     if course_id is not None:
         query = query.filter(Card.course_id == course_id)
 
@@ -97,10 +103,11 @@ def next_card(
     due_from: str | None = Query(default=None),
     due_to: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     now_iso = datetime.now(timezone.utc).isoformat()
     q = db.query(Card).filter(Card.due <= now_iso)
-    q = _apply_card_filters(q, course_id, created_from, created_to, due_from, due_to)
+    q = _apply_card_filters(q, user.id, course_id, created_from, created_to, due_from, due_to)
     card = q.order_by(Card.due).first()
     if card is None:
         return Response(status_code=204)
@@ -135,6 +142,7 @@ def review_queue(
     due_from: str | None = Query(default=None),
     due_to: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
@@ -142,7 +150,7 @@ def review_queue(
     end_of_week = (now + timedelta(days=7)).isoformat()
 
     base = _apply_card_filters(
-        db.query(Card), course_id, created_from, created_to, due_from, due_to
+        db.query(Card), user.id, course_id, created_from, created_to, due_from, due_to
     )
 
     return ReviewQueueResponse(
@@ -160,6 +168,7 @@ def review_courses(
     due_from: str | None = Query(default=None),
     due_to: str | None = Query(default=None),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Per-course card counts, honouring the same filters as the session.
 
@@ -179,6 +188,7 @@ def review_courses(
                 func.min(Card.created_at).label("oldest_created_at"),
                 func.max(Card.created_at).label("newest_created_at"),
             ).filter(Card.course_id.isnot(None)),  # a NULL bucket is not a course
+            user.id,
             None,
             created_from,
             created_to,
@@ -189,7 +199,9 @@ def review_courses(
         .all()
     )
 
-    courses = {c.id: c for c in db.query(Course).all()}
+    courses = {
+        c.id: c for c in db.query(Course).filter(Course.user_id == user.id).all()
+    }
 
     out: list[ReviewCourseGroup] = []
     for row in rows:
@@ -217,6 +229,7 @@ def review_forecast(
     course_id: str | None = Query(default=None),
     days: int = Query(default=28, ge=1, le=90),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Cards due per calendar day, for the review calendar.
 
@@ -228,9 +241,15 @@ def review_forecast(
     today = now.date()
     horizon = (now + timedelta(days=days)).isoformat()
 
-    base = db.query(Card).filter(Card.due <= horizon)
-    if course_id is not None:
-        base = base.filter(Card.course_id == course_id)
+    base = _apply_card_filters(
+        db.query(Card).filter(Card.due <= horizon),
+        user.id,
+        course_id,
+        None,
+        None,
+        None,
+        None,
+    )
 
     counts: dict[str, int] = {
         (today + timedelta(days=i)).isoformat(): 0 for i in range(days)
@@ -251,10 +270,12 @@ def review_forecast(
 
 
 @router.post("/grade", response_model=GradeResponse)
-def grade_card(body: GradeRequest, db: Session = Depends(get_db)):
-    card = db.get(Card, body.card_id)
-    if not card:
-        raise HTTPException(status_code=404, detail="Card not found.")
+def grade_card(
+    body: GradeRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    card = get_owned_card(db, body.card_id, user.id)
 
     fsrs_card = _to_fsrs_card(card)
     updated, _review_log = _scheduler.review_card(fsrs_card, Rating(body.rating))
@@ -274,8 +295,13 @@ def grade_card(body: GradeRequest, db: Session = Depends(get_db)):
     ))
     db.commit()
     db.refresh(card)
-    record_event(db, REVIEW_GRADED, {"rating": body.rating, "card_id": body.card_id})
-    evaluate_achievements(db)
+    record_event(
+        db,
+        REVIEW_GRADED,
+        {"rating": body.rating, "card_id": body.card_id},
+        user_id=user.id,
+    )
+    evaluate_achievements(db, user_id=user.id)
 
     return GradeResponse(
         card_id=card.id,

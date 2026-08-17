@@ -17,8 +17,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
+from app.auth.deps import current_user
+from app.auth.ownership import get_owned_lesson
 from app.database import get_db
-from app.models import Lesson
+from app.models import Lesson, User
 from app.services.content_parser import parse_lesson_body
 from app.services.course_profile import profile_for_lesson
 from app.services.tts import synthesize_speech
@@ -121,14 +123,12 @@ def _concat_wavs(wav_chunks: list[bytes]) -> bytes:
 
 
 @router.post("/{lesson_id}/narration")
-def generate_narration(lesson_id: str, db: Session = Depends(get_db)):
-    lesson = (
-        db.query(Lesson)
-        .filter(Lesson.id == lesson_id)
-        .first()
-    )
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found")
+def generate_narration(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    lesson = get_owned_lesson(db, lesson_id, user.id)
 
     narration_text = _build_narration_text(lesson)
     # Before the cache lookup, so an empty lesson never writes a cache row.

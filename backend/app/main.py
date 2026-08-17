@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import create_tables
@@ -12,6 +12,7 @@ from app.routes.search import router as search_router
 from app.routes.speech import router as speech_router
 from app.routes.audio import router as audio_narration_router
 from app.routes.audio_serve import router as audio_serve_router
+from app.auth.deps import current_user
 from app.auth.routes import router as auth_router
 from app.routes.achievements import router as achievements_router
 from app.routes.drills import router as drills_router
@@ -43,20 +44,29 @@ app.add_middleware(
 # Ungated: registration, login and logout must be reachable without a session.
 app.include_router(auth_router)
 
-app.include_router(courses_router)
-app.include_router(lessons_router)
-app.include_router(questions_router)
-app.include_router(review_router)
-app.include_router(search_router)
-app.include_router(speech_router)
-app.include_router(audio_narration_router)
-app.include_router(audio_serve_router)
-app.include_router(chat_router)
-app.include_router(achievements_router)
-app.include_router(drills_router)
+# Every other router is gated. Declaring the dependency at include time rather
+# than as middleware means: `/`, `/health` and the OpenAPI routes are exempt
+# structurally (they hang off `app`, not a router) with no path matching to get
+# wrong; 401s are raised inside the router so CORSMiddleware still wraps them
+# and the browser can actually read the status; the SSE StreamingResponse in
+# chat.py is untouched; and tests disable auth with a single
+# dependency_overrides key.
+_AUTHED = [Depends(current_user)]
+
+app.include_router(courses_router, dependencies=_AUTHED)
+app.include_router(lessons_router, dependencies=_AUTHED)
+app.include_router(questions_router, dependencies=_AUTHED)
+app.include_router(review_router, dependencies=_AUTHED)
+app.include_router(search_router, dependencies=_AUTHED)
+app.include_router(speech_router, dependencies=_AUTHED)
+app.include_router(audio_narration_router, dependencies=_AUTHED)
+app.include_router(audio_serve_router, dependencies=_AUTHED)
+app.include_router(chat_router, dependencies=_AUTHED)
+app.include_router(achievements_router, dependencies=_AUTHED)
+app.include_router(drills_router, dependencies=_AUTHED)
 
 from app.routes.insights import router as insights_router
-app.include_router(insights_router)
+app.include_router(insights_router, dependencies=_AUTHED)
 
 
 @app.get("/")

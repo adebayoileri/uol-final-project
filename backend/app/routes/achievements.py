@@ -9,16 +9,22 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.achievements.catalogue import CATALOGUE
+from app.auth.deps import current_user
 from app.database import get_db
+from app.models import User
 
 router = APIRouter(prefix="/achievements", tags=["achievements"])
 
 
 @router.get("")
-def list_achievements(db: Session = Depends(get_db)):
+def list_achievements(db: Session = Depends(get_db), user: User = Depends(current_user)):
     try:
         rows = db.execute(
-            text("SELECT achievement_id, unlocked_at FROM user_achievements")
+            text(
+                "SELECT achievement_id, unlocked_at FROM user_achievements "
+                "WHERE user_id = :uid"
+            ),
+            {"uid": user.id},
         ).fetchall()
         unlocked_map = {r.achievement_id: r.unlocked_at for r in rows}
     except Exception:
@@ -46,9 +52,9 @@ def recent_achievements(
         rows = db.execute(
             text("""
                 SELECT achievement_id, unlocked_at FROM user_achievements
-                WHERE unlocked_at > :since ORDER BY unlocked_at DESC
+                WHERE user_id = :uid AND unlocked_at > :since ORDER BY unlocked_at DESC
             """),
-            {"since": since},
+            {"since": since, "uid": user.id},
         ).fetchall()
     except Exception:
         return []

@@ -20,8 +20,20 @@ COURSE_GENERATED = "course_generated"
 _SESSION_GAP_MINUTES = 10
 
 
-def record_event(db: Session, event_type: str, metadata: dict | None = None) -> None:
-    """Insert an event row and extend/create the current study session.
+def record_event(
+    db: Session,
+    event_type: str,
+    metadata: dict | None = None,
+    *,
+    user_id: str,
+) -> None:
+    """Insert an event row and extend/create the caller's study session.
+
+    `user_id` is keyword-only with no default on purpose. Every call site
+    passes `metadata` positionally, so a third positional parameter would
+    silently bind a dict to the owner — and this function swallows every
+    exception, so that corruption would be invisible. Keyword-only turns a
+    missed call site into a loud TypeError instead.
 
     Best-effort: any DB error (e.g. table not yet migrated in tests) is logged
     and swallowed so the calling route handler is never affected.
@@ -32,31 +44,46 @@ def record_event(db: Session, event_type: str, metadata: dict | None = None) -> 
 
         db.execute(
             text("""
-                INSERT INTO user_events (id, event_type, occurred_at, metadata)
-                VALUES (:id, :type, :now, :meta)
+                INSERT INTO user_events (id, user_id, event_type, occurred_at, metadata)
+                VALUES (:id, :uid, :type, :now, :meta)
             """),
-            {"id": event_id, "type": event_type, "now": now, "meta": json.dumps(metadata or {})},
+            {
+                "id": event_id,
+                "uid": user_id,
+                "type": event_type,
+                "now": now,
+                "meta": json.dumps(metadata or {}),
+            },
         )
 
-        # Upsert study session: extend if last activity < 10 min ago, else create new
+        # Upsert THIS USER's study session. Scoping the SELECT is the load-bearing
+        # part: without it, two users active within the window merge into one row.
         cutoff = now - timedelta(minutes=_SESSION_GAP_MINUTES)
         row = db.execute(
-            text("SELECT id FROM study_sessions WHERE last_activity_at >= :cutoff ORDER BY last_activity_at DESC LIMIT 1"),
-            {"cutoff": cutoff},
+            text("""
+                SELECT id FROM study_sessions
+                WHERE user_id = :uid AND last_activity_at >= :cutoff
+                ORDER BY last_activity_at DESC LIMIT 1
+            """),
+            {"uid": user_id, "cutoff": cutoff},
         ).fetchone()
 
         if row:
             db.execute(
-                text("UPDATE study_sessions SET last_activity_at = :now, event_count = event_count + 1 WHERE id = :id"),
-                {"now": now, "id": row.id},
+                text("""
+                    UPDATE study_sessions
+                    SET last_activity_at = :now, event_count = event_count + 1
+                    WHERE id = :id AND user_id = :uid
+                """),
+                {"now": now, "id": row.id, "uid": user_id},
             )
         else:
             db.execute(
                 text("""
-                    INSERT INTO study_sessions (id, started_at, last_activity_at, event_count)
-                    VALUES (:id, :now, :now, 1)
+                    INSERT INTO study_sessions (id, user_id, started_at, last_activity_at, event_count)
+                    VALUES (:id, :uid, :now, :now, 1)
                 """),
-                {"id": str(uuid.uuid4()), "now": now},
+                {"id": str(uuid.uuid4()), "uid": user_id, "now": now},
             )
 
         db.commit()

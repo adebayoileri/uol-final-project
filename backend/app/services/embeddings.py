@@ -6,6 +6,7 @@ import time
 import numpy as np
 from sqlalchemy.orm import Session
 
+from app.auth.ownership import owned_course_ids
 from app.models import ContentEmbedding
 from app.services.answer_evaluator import embed
 
@@ -75,14 +76,25 @@ def index_question(question, lesson, db: Session) -> None:
     db.commit()
 
 
-def search(query: str, k: int, db: Session, course_id: str | None = None) -> list[dict]:
+def search(
+    query: str,
+    k: int,
+    db: Session,
+    user_id: str,
+    course_id: str | None = None,
+) -> list[dict]:
     t0 = time.perf_counter()
 
     q_vec = np.array(embed(query), dtype=np.float32)
     q_norm = np.linalg.norm(q_vec)
     q_vec = q_vec / (q_norm + 1e-10)
 
-    rows_q = db.query(ContentEmbedding)
+    # Scope to the caller's courses BEFORE anything else. Without this, an
+    # unfiltered query returns lesson and question text from every account in
+    # the database — a bulk leak needing no id guessing at all.
+    rows_q = db.query(ContentEmbedding).filter(
+        ContentEmbedding.course_id.in_(owned_course_ids(user_id))
+    )
     if course_id:
         rows_q = rows_q.filter(ContentEmbedding.course_id == course_id)
     rows = rows_q.all()

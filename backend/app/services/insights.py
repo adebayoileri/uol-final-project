@@ -20,7 +20,7 @@ OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
 OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.1:8b")
 
 
-def optimal_study_time(db: Session) -> dict | None:
+def optimal_study_time(db: Session, user_id: str) -> dict | None:
     """Return the 2-hour window with the highest average answer score.
 
     Requires ≥20 QUESTION_ANSWERED events. Returns None if insufficient data.
@@ -29,9 +29,11 @@ def optimal_study_time(db: Session) -> dict | None:
         text("""
             SELECT occurred_at, json_extract(metadata, '$.score') as score
             FROM user_events
-            WHERE event_type = :et AND json_extract(metadata, '$.score') IS NOT NULL
+            WHERE event_type = :et
+              AND user_id = :uid
+              AND json_extract(metadata, '$.score') IS NOT NULL
         """),
-        {"et": QUESTION_ANSWERED},
+        {"et": QUESTION_ANSWERED, "uid": user_id},
     ).fetchall()
 
     if len(rows) < 20:

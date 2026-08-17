@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from agents.course_agent import generate_course
 from app.auth.deps import current_user
+from app.auth.ownership import get_owned_course, get_owned_lesson
 from app.database import get_db
 from app.models import Course, Lesson, Module, Objective, User
 from app.schemas import (
@@ -113,48 +114,54 @@ def create_course(
         for lesson in module.lessons:
             index_lesson(lesson, db)
 
-    record_event(db, COURSE_GENERATED, {"course_id": course.id, "category": course.category})
+    record_event(
+        db,
+        COURSE_GENERATED,
+        {"course_id": course.id, "category": course.category},
+        user_id=user.id,
+    )
     return CourseResponse.model_validate(course)
 
 
 @router.get("/{course_id}", response_model=CourseResponse)
-def get_course(course_id: str, db: Session = Depends(get_db)) -> CourseResponse:
-    course = (
-        db.query(Course)
-        .options(
-            selectinload(Course.modules)
-            .selectinload(Module.lessons)
-            .selectinload(Lesson.objectives)
-        )
-        .filter(Course.id == course_id)
-        .first()
+def get_course(
+    course_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> CourseResponse:
+    course = get_owned_course(
+        db,
+        course_id,
+        user.id,
+        selectinload(Course.modules)
+        .selectinload(Module.lessons)
+        .selectinload(Lesson.objectives),
     )
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found.")
     return CourseResponse.model_validate(course)
 
 
 @router.get("/{course_id}/mastery")
-def get_mastery(course_id: str, db: Session = Depends(get_db)):
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found.")
+def get_mastery(
+    course_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    get_owned_course(db, course_id, user.id)
     return course_mastery(course_id, db)
 
 
 @router.get("/{course_id}/timeline")
-def get_timeline(course_id: str, db: Session = Depends(get_db)):
-    course = (
-        db.query(Course)
-        .options(
-            selectinload(Course.modules)
-            .selectinload(Module.lessons)
-        )
-        .filter(Course.id == course_id)
-        .first()
+def get_timeline(
+    course_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    course = get_owned_course(
+        db,
+        course_id,
+        user.id,
+        selectinload(Course.modules).selectinload(Module.lessons),
     )
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found.")
 
     modules_out = []
     total_minutes = 0
@@ -180,12 +187,17 @@ def get_timeline(course_id: str, db: Session = Depends(get_db)):
         "modules": modules_out,
         "total_minutes": total_minutes,
         "completed_minutes": completed_minutes,
-        "streak": current_streak(db),
+        "streak": current_streak(db, user.id),
     }
 
 
 @router.get("/{course_id}/certificate")
-def get_certificate(course_id: str, db: Session = Depends(get_db)):
+def get_certificate(
+    course_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    get_owned_course(db, course_id, user.id)
     pdf_bytes = generate_certificate(course_id, db)
     return Response(
         content=pdf_bytes,
@@ -196,7 +208,10 @@ def get_certificate(course_id: str, db: Session = Depends(get_db)):
 
 @router.get("/{course_id}/lessons/{lesson_id}", response_model=LessonDetailResponse)
 def get_lesson_detail(
-    course_id: str, lesson_id: str, db: Session = Depends(get_db)
+    course_id: str,
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ) -> LessonDetailResponse:
     lesson = (
         db.query(Lesson)
@@ -205,7 +220,12 @@ def get_lesson_detail(
             selectinload(Lesson.questions),
         )
         .join(Module, Module.id == Lesson.module_id)
-        .filter(Module.course_id == course_id, Lesson.id == lesson_id)
+        .join(Course, Course.id == Module.course_id)
+        .filter(
+            Module.course_id == course_id,
+            Lesson.id == lesson_id,
+            Course.user_id == user.id,
+        )
         .first()
     )
     if not lesson:

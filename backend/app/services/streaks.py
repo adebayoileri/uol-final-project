@@ -8,17 +8,17 @@ from sqlalchemy.orm import Session
 from app.services.events import LESSON_COMPLETED, REVIEW_GRADED
 
 
-def current_streak(db: Session) -> int:
+def current_streak(db: Session, user_id: str) -> int:
     """Count consecutive calendar days (UTC) with ≥1 qualifying event, going back from today."""
     rows = db.execute(
         text("""
             SELECT DATE(occurred_at) as day
             FROM user_events
-            WHERE event_type IN (:lc, :rg)
+            WHERE event_type IN (:lc, :rg) AND user_id = :uid
             GROUP BY DATE(occurred_at)
             ORDER BY day DESC
         """),
-        {"lc": LESSON_COMPLETED, "rg": REVIEW_GRADED},
+        {"lc": LESSON_COMPLETED, "rg": REVIEW_GRADED, "uid": user_id},
     ).fetchall()
 
     if not rows:
@@ -36,10 +36,11 @@ def current_streak(db: Session) -> int:
     return streak
 
 
-def total_study_time_minutes(db: Session) -> float:
+def total_study_time_minutes(db: Session, user_id: str) -> float:
     """Sum of (last_activity_at - started_at) across all study sessions, in minutes."""
     rows = db.execute(
-        text("SELECT started_at, last_activity_at FROM study_sessions")
+        text("SELECT started_at, last_activity_at FROM study_sessions WHERE user_id = :uid"),
+        {"uid": user_id},
     ).fetchall()
 
     total_seconds = 0.0

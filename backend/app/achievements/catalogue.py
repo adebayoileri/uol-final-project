@@ -16,15 +16,16 @@ class Achievement:
     title: str
     description: str
     icon: str
-    check_fn: Callable[[Session], bool]
+    check_fn: Callable[[Session, str], bool]   # (db, user_id) -> bool
 
 
-def _check_course_champion(db: Session) -> bool:
-    """At least one course where all lessons are completed."""
+def _check_course_champion(db: Session, user_id: str) -> bool:
+    """At least one of THIS USER's courses where all lessons are completed."""
     row = db.execute(text("""
         SELECT c.id
         FROM courses c
-        WHERE (
+        WHERE c.user_id = :uid
+        AND (
             SELECT COUNT(*) FROM modules m
             JOIN lessons l ON l.module_id = m.id
             WHERE m.course_id = c.id
@@ -35,38 +36,41 @@ def _check_course_champion(db: Session) -> bool:
             WHERE m.course_id = c.id AND l.completed_at IS NULL
         ) = 0
         LIMIT 1
-    """)).fetchone()
+    """), {"uid": user_id}).fetchone()
     return row is not None
 
 
-def _check_consistent_learner(db: Session) -> bool:
-    return current_streak(db) >= 5
+def _check_consistent_learner(db: Session, user_id: str) -> bool:
+    return current_streak(db, user_id) >= 5
 
 
-def _check_memory_master(db: Session) -> bool:
-    """At least one course where ≥80% of cards have stability > 10."""
+def _check_memory_master(db: Session, user_id: str) -> bool:
+    """At least one of this user's courses where ≥80% of cards have stability > 10."""
     row = db.execute(text("""
-        SELECT course_id,
+        SELECT ca.course_id,
                COUNT(*) as total,
-               SUM(CASE WHEN stability > 10 THEN 1 ELSE 0 END) as stable
-        FROM cards
-        WHERE course_id IS NOT NULL
-        GROUP BY course_id
+               SUM(CASE WHEN ca.stability > 10 THEN 1 ELSE 0 END) as stable
+        FROM cards ca
+        JOIN courses co ON co.id = ca.course_id
+        WHERE ca.course_id IS NOT NULL AND co.user_id = :uid
+        GROUP BY ca.course_id
         HAVING total > 0 AND CAST(stable AS FLOAT) / total >= 0.8
         LIMIT 1
-    """)).fetchone()
+    """), {"uid": user_id}).fetchone()
     return row is not None
 
 
-def _check_question_master(db: Session) -> bool:
+def _check_question_master(db: Session, user_id: str) -> bool:
     """50 QUESTION_ANSWERED events with verdict=correct in metadata."""
     row = db.execute(
         text("""
             SELECT COUNT(*) as cnt
             FROM user_events
-            WHERE event_type = :et AND json_extract(metadata, '$.verdict') = 'correct'
+            WHERE event_type = :et
+              AND user_id = :uid
+              AND json_extract(metadata, '$.verdict') = 'correct'
         """),
-        {"et": QUESTION_ANSWERED},
+        {"et": QUESTION_ANSWERED, "uid": user_id},
     ).fetchone()
     return (row.cnt if row else 0) >= 50
 

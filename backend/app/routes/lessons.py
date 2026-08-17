@@ -6,8 +6,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fsrs import Card as FSRSCard
 from sqlalchemy.orm import Session, selectinload
 
+from app.auth.deps import current_user
+from app.auth.ownership import get_owned_lesson
 from app.database import get_db
-from app.models import Card as DBCard, Lesson, Module, Question
+from app.models import Card as DBCard, Lesson, Module, Question, User
 from app.schemas import LessonEnrichResponse, QuestionResponse
 from app.services.answer_evaluator import embed
 from app.services.embeddings import index_question
@@ -25,18 +27,18 @@ router = APIRouter(prefix="/lessons", tags=["lessons"])
     response_model=list[QuestionResponse],
     status_code=201,
 )
-def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
-    lesson = (
-        db.query(Lesson)
-        .options(
-            selectinload(Lesson.objectives),
-            selectinload(Lesson.module).selectinload(Module.course),
-        )
-        .filter(Lesson.id == lesson_id)
-        .first()
+def generate_lesson_questions(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    lesson = get_owned_lesson(
+        db,
+        lesson_id,
+        user.id,
+        selectinload(Lesson.objectives),
+        selectinload(Lesson.module).selectinload(Module.course),
     )
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found.")
 
     try:
         questions_data = generate_questions(lesson)
@@ -86,7 +88,11 @@ def generate_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{lesson_id}/enrich", response_model=LessonEnrichResponse)
-def enrich_lesson_content(lesson_id: str, db: Session = Depends(get_db)):
+def enrich_lesson_content(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
     """Generate (or return cached) deep content for a lesson.
 
     Deliberately a separate endpoint rather than part of GET lesson detail:
@@ -95,17 +101,13 @@ def enrich_lesson_content(lesson_id: str, db: Session = Depends(get_db)):
     mutate the database inside a GET, and make an enrichment failure break the
     lesson page itself.
     """
-    lesson = (
-        db.query(Lesson)
-        .options(
-            selectinload(Lesson.objectives),
-            selectinload(Lesson.module).selectinload(Module.course),
-        )
-        .filter(Lesson.id == lesson_id)
-        .first()
+    lesson = get_owned_lesson(
+        db,
+        lesson_id,
+        user.id,
+        selectinload(Lesson.objectives),
+        selectinload(Lesson.module).selectinload(Module.course),
     )
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found.")
 
     if lesson.content_json:
         return LessonEnrichResponse(status="cached", content=lesson.content)
@@ -129,9 +131,12 @@ def enrich_lesson_content(lesson_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{lesson_id}/questions", response_model=list[QuestionResponse])
-def list_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
-    if not db.get(Lesson, lesson_id):
-        raise HTTPException(status_code=404, detail="Lesson not found.")
+def list_lesson_questions(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    get_owned_lesson(db, lesson_id, user.id)
     return (
         db.query(Question)
         .filter(Question.lesson_id == lesson_id)
@@ -141,13 +146,15 @@ def list_lesson_questions(lesson_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/{lesson_id}/complete", status_code=204)
-def complete_lesson(lesson_id: str, db: Session = Depends(get_db)):
-    lesson = db.get(Lesson, lesson_id)
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found.")
+def complete_lesson(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    lesson = get_owned_lesson(db, lesson_id, user.id)
     if lesson.completed_at is None:
         lesson.completed_at = datetime.now(timezone.utc)
         db.commit()
-        record_event(db, LESSON_COMPLETED, {"lesson_id": lesson_id})
-        evaluate_achievements(db)
+        record_event(db, LESSON_COMPLETED, {"lesson_id": lesson_id}, user_id=user.id)
+        evaluate_achievements(db, user_id=user.id)
     return Response(status_code=204)

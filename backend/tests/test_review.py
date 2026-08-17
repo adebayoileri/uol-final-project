@@ -123,7 +123,9 @@ def _seed_card(
         difficulty=None,
         due=due.isoformat(),
         last_review=None,
-        course_id=course_id,
+        # Default to the course actually created above: a card with no
+        # course_id belongs to nobody and is excluded from every queue.
+        course_id=course_id if course_id is not None else course.id,
     )
     db_session.add(card)
     db_session.commit()
@@ -241,30 +243,32 @@ def test_grade_state_advances_on_good(client, db_session):
 
 def test_next_card_scoped_to_correct_course(client, db_session):
     """course_id param returns the matching course's card, ignoring other courses."""
-    card_a = _seed_card(db_session, course_id="cid-a", due_offset_hours=-1)
-    _seed_card(db_session, course_id="cid-b", due_offset_hours=-1)
-    resp = client.get("/review/next?course_id=cid-a")
+    card_a = _seed_card(db_session, due_offset_hours=-1)
+    _seed_card(db_session, due_offset_hours=-1)
+    resp = client.get(f"/review/next?course_id={card_a.course_id}")
     assert resp.status_code == 200
     assert resp.json()["id"] == card_a.id
 
 
 def test_next_out_of_scope_card_returns_204(client, db_session):
     """course_id filter excludes cards from other courses even when they are due."""
-    _seed_card(db_session, course_id="cid-a", due_offset_hours=-1)
-    resp = client.get("/review/next?course_id=cid-b")
+    other = _seed_card(db_session, due_offset_hours=-1)
+    # A real course that owns no due cards.
+    empty = _seed_card(db_session, due_offset_hours=+48)
+    assert other.course_id != empty.course_id
+    resp = client.get(f"/review/next?course_id={empty.course_id}")
     assert resp.status_code == 204
 
 
 def test_next_future_card_in_scope_returns_204(client, db_session):
     """A not-yet-due card in the matching course returns 204."""
-    _seed_card(db_session, course_id="cid-a", due_offset_hours=+24)
-    resp = client.get("/review/next?course_id=cid-a")
+    future = _seed_card(db_session, due_offset_hours=+24)
+    resp = client.get(f"/review/next?course_id={future.course_id}")
     assert resp.status_code == 204
 
 
 def test_queue_counts_scoped_and_mixed(client, db_session):
     """Queue endpoint returns correct counts for mixed due dates, excluding other courses."""
-    cid = "cid-queue"
     now = datetime.now(timezone.utc)
     # Anchored to the end of the current UTC day rather than "now + 3h", which
     # silently falls into tomorrow whenever the suite runs after 21:00 UTC.
@@ -272,11 +276,14 @@ def test_queue_counts_scoped_and_mixed(client, db_session):
     if later_today <= now:
         later_today = now + timedelta(minutes=1)
 
-    _seed_card(db_session, course_id=cid, due_offset_hours=-1)    # overdue → due_now + today + week
+    # The first card creates the course the rest attach to; a real id is
+    # required now that cards are scoped through course ownership.
+    first = _seed_card(db_session, due_offset_hours=-1)           # overdue → due_now + today + week
+    cid = first.course_id
     _seed_card(db_session, course_id=cid, due_at=later_today)     # later today → today + week
     _seed_card(db_session, course_id=cid, due_offset_hours=+50)   # due in 50h (~2d) → week only
     _seed_card(db_session, course_id=cid, due_offset_hours=+200)  # due in 200h (~8d) → none
-    _seed_card(db_session, course_id="other-cid", due_offset_hours=-1)  # excluded by scope
+    _seed_card(db_session, due_offset_hours=-1)                   # other course → excluded by scope
 
     resp = client.get(f"/review/queue?course_id={cid}")
     assert resp.status_code == 200
@@ -337,9 +344,9 @@ def test_forecast_excludes_cards_beyond_the_horizon(client, db_session):
 
 
 def test_forecast_scoped_to_course(client, db_session):
-    _seed_card(db_session, due_offset_hours=24, course_id="cid-a")
-    _seed_card(db_session, due_offset_hours=24, course_id="cid-b")
-    body = client.get("/review/forecast?course_id=cid-a&days=14").json()
+    a = _seed_card(db_session, due_offset_hours=24)
+    _seed_card(db_session, due_offset_hours=24)
+    body = client.get(f"/review/forecast?course_id={a.course_id}&days=14").json()
     assert sum(row["count"] for row in body) == 1
 
 

@@ -12,7 +12,7 @@ from app.achievements.catalogue import CATALOGUE
 logger = logging.getLogger(__name__)
 
 
-def evaluate_achievements(db: Session) -> list[str]:
+def evaluate_achievements(db: Session, *, user_id: str) -> list[str]:
     """Check all achievements and unlock any newly earned ones.
 
     Returns list of achievement IDs newly unlocked this call. Best-effort:
@@ -21,7 +21,10 @@ def evaluate_achievements(db: Session) -> list[str]:
     try:
         already_unlocked = {
             row.achievement_id
-            for row in db.execute(text("SELECT achievement_id FROM user_achievements")).fetchall()
+            for row in db.execute(
+                text("SELECT achievement_id FROM user_achievements WHERE user_id = :uid"),
+                {"uid": user_id},
+            ).fetchall()
         }
     except Exception as exc:
         logger.warning("evaluate_achievements: could not read achievements: %s", exc)
@@ -32,7 +35,7 @@ def evaluate_achievements(db: Session) -> list[str]:
         if achievement.id in already_unlocked:
             continue
         try:
-            earned = achievement.check_fn(db)
+            earned = achievement.check_fn(db, user_id)
         except Exception as exc:
             logger.warning("Achievement check %s failed: %s", achievement.id, exc)
             continue
@@ -40,11 +43,16 @@ def evaluate_achievements(db: Session) -> list[str]:
             try:
                 db.execute(
                     text("""
-                        INSERT INTO user_achievements (id, achievement_id, unlocked_at)
-                        VALUES (:id, :achievement_id, :now)
-                        ON CONFLICT(achievement_id) DO NOTHING
+                        INSERT INTO user_achievements (id, user_id, achievement_id, unlocked_at)
+                        VALUES (:id, :uid, :achievement_id, :now)
+                        ON CONFLICT(user_id, achievement_id) DO NOTHING
                     """),
-                    {"id": str(uuid.uuid4()), "achievement_id": achievement.id, "now": datetime.now(timezone.utc)},
+                    {
+                        "id": str(uuid.uuid4()),
+                        "uid": user_id,
+                        "achievement_id": achievement.id,
+                        "now": datetime.now(timezone.utc),
+                    },
                 )
                 db.commit()
                 newly_unlocked.append(achievement.id)

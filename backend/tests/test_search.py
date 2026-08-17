@@ -90,6 +90,25 @@ def _make_lesson(db_session, title: str, description: str, course_id: str | None
     return lesson
 
 
+def _owned_course(db) -> str:
+    """Create a course owned by the test user and return its id.
+
+    Embeddings are scoped through course ownership, so a free-floating uuid
+    belongs to nobody and matches nothing.
+    """
+    course = Course(
+        user_id=TEST_USER_ID,
+        goal="Search fixture",
+        duration="short_term",
+        category="Test",
+        title="Search Fixture",
+        description="Fixture course.",
+    )
+    db.add(course)
+    db.flush()
+    return course.id
+
+
 def _insert_embedding(db_session, content_type: str, content_id: str, text: str, course_id: str, lesson_id: str | None = None) -> None:
     vec = np.zeros(384, dtype=np.float32)
     db_session.add(ContentEmbedding(
@@ -187,51 +206,51 @@ def test_index_question_upserts_not_duplicates(db_session):
 # ---------------------------------------------------------------------------
 
 def test_search_empty_index_returns_empty(db_session):
-    results = search("Python variables", 5, db_session)
+    results = search("Python variables", 5, db_session, TEST_USER_ID)
     assert results == []
 
 
 def test_search_top_k_limit(db_session):
-    cid = str(uuid.uuid4())
+    cid = _owned_course(db_session)
     for i in range(10):
         _insert_embedding(db_session, "lesson", str(uuid.uuid4()), f"Lesson {i}", cid)
-    results = search("lesson content", 3, db_session)
+    results = search("lesson content", 3, db_session, TEST_USER_ID)
     assert len(results) == 3
 
 
 def test_search_returns_all_when_fewer_than_k(db_session):
-    cid = str(uuid.uuid4())
+    cid = _owned_course(db_session)
     for i in range(3):
         _insert_embedding(db_session, "lesson", str(uuid.uuid4()), f"Lesson {i}", cid)
-    results = search("lesson", 10, db_session)
+    results = search("lesson", 10, db_session, TEST_USER_ID)
     assert len(results) == 3
 
 
 def test_search_course_id_scope(db_session):
-    cid_a = str(uuid.uuid4())
-    cid_b = str(uuid.uuid4())
+    cid_a = _owned_course(db_session)
+    cid_b = _owned_course(db_session)
     _insert_embedding(db_session, "lesson", str(uuid.uuid4()), "Python variables and types", cid_a)
     _insert_embedding(db_session, "lesson", str(uuid.uuid4()), "Spanish greetings", cid_b)
 
-    results = search("variable types", 5, db_session, course_id=cid_a)
+    results = search("variable types", 5, db_session, TEST_USER_ID, course_id=cid_a)
     assert len(results) == 1
     assert results[0]["course_id"] == cid_a
 
 
 def test_search_scores_descending(db_session):
-    cid = str(uuid.uuid4())
+    cid = _owned_course(db_session)
     for i in range(5):
         _insert_embedding(db_session, "lesson", str(uuid.uuid4()), f"Topic {i}", cid)
-    results = search("topic", 5, db_session)
+    results = search("topic", 5, db_session, TEST_USER_ID)
     scores = [r["score"] for r in results]
     assert scores == sorted(scores, reverse=True)
 
 
 def test_search_result_shape(db_session):
-    cid = str(uuid.uuid4())
+    cid = _owned_course(db_session)
     lid = str(uuid.uuid4())
     _insert_embedding(db_session, "lesson", lid, "Python loops", cid)
-    results = search("loops", 1, db_session)
+    results = search("loops", 1, db_session, TEST_USER_ID)
     assert len(results) == 1
     r = results[0]
     assert set(r.keys()) == {"content_type", "content_id", "content_text", "course_id", "lesson_id", "score"}
@@ -247,7 +266,7 @@ def test_search_result_shape(db_session):
 def test_search_endpoint_returns_200(client, test_engine):
     Session = sessionmaker(bind=test_engine)
     with Session() as db:
-        cid = str(uuid.uuid4())
+        cid = _owned_course(db)
         _insert_embedding(db, "lesson", str(uuid.uuid4()), "Python variables", cid)
     resp = client.get("/search?q=variables")
     assert resp.status_code == 200
@@ -262,7 +281,7 @@ def test_search_endpoint_empty_q_returns_422(client):
 def test_search_endpoint_k_param(client, test_engine):
     Session = sessionmaker(bind=test_engine)
     with Session() as db:
-        cid = str(uuid.uuid4())
+        cid = _owned_course(db)
         for i in range(8):
             _insert_embedding(db, "lesson", str(uuid.uuid4()), f"Lesson {i} about Python", cid)
     resp = client.get("/search?q=Python&k=3")
@@ -272,8 +291,8 @@ def test_search_endpoint_k_param(client, test_engine):
 
 def test_search_endpoint_course_id_filter(client, test_engine):
     Session = sessionmaker(bind=test_engine)
-    cid = str(uuid.uuid4())
     with Session() as db:
+        cid = _owned_course(db)
         _insert_embedding(db, "lesson", str(uuid.uuid4()), "Python variables", cid)
         _insert_embedding(db, "lesson", str(uuid.uuid4()), "Spanish greetings", str(uuid.uuid4()))
 
@@ -301,7 +320,19 @@ SEMANTIC_CORPUS = [
 
 @pytest.fixture()
 def semantic_db(db_session):
-    cid = str(uuid.uuid4())
+    # A real owned course: embeddings are now scoped through course ownership,
+    # so a free-floating course_id belongs to nobody and returns nothing.
+    course = Course(
+        user_id=TEST_USER_ID,
+        goal="Semantic corpus",
+        duration="short_term",
+        category="Test",
+        title="Semantic Corpus",
+        description="Fixture course.",
+    )
+    db_session.add(course)
+    db_session.flush()
+    cid = course.id
     from app.services.answer_evaluator import embed
     for text, ctype in SEMANTIC_CORPUS:
         vec = np.array(embed(text), dtype=np.float32)
@@ -325,7 +356,7 @@ def semantic_db(db_session):
     ("if else conditional logic", "conditional"),
 ])
 def test_search_semantic_relevance(semantic_db, query, expected_fragment):
-    results = search(query, k=3, db=semantic_db)
+    results = search(query, k=3, db=semantic_db, user_id=TEST_USER_ID)
     assert results, f"No results for query: {query!r}"
     top_text = results[0]["content_text"].lower()
     assert expected_fragment in top_text, (

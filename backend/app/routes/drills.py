@@ -12,8 +12,10 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
+from app.auth.deps import current_user
+from app.auth.ownership import get_owned_course
 from app.database import get_db
-from app.models import Course
+from app.models import Course, User
 from app.services.course_profile import resolve_course_profile
 from app.services.drills import (
     DRILL_KINDS,
@@ -35,16 +37,17 @@ _AUDIO_DIR = Path(__file__).parent.parent.parent / "data" / "narration"
 _AUDIO_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def _get_course(course_id: str, db: Session) -> Course:
-    course = db.query(Course).filter(Course.id == course_id).first()
-    if not course:
-        raise HTTPException(status_code=404, detail="Course not found.")
-    return course
+def _get_course(course_id: str, db: Session, user_id: str) -> Course:
+    return get_owned_course(db, course_id, user_id)
 
 
 @router.get("/{course_id}/drills")
-def list_drills(course_id: str, db: Session = Depends(get_db)):
-    course = _get_course(course_id, db)
+def list_drills(
+    course_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    course = _get_course(course_id, db, user.id)
     return drill_availability(course, load_course_lessons(course_id, db))
 
 
@@ -69,11 +72,12 @@ def get_drill(
     kind: str,
     n: int = Query(default=8, ge=1, le=30),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     if kind not in DRILL_KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown drill '{kind}'.")
 
-    course = _get_course(course_id, db)
+    course = _get_course(course_id, db, user.id)
     lessons = load_course_lessons(course_id, db)
     items = build_drill(kind, course, lessons, n)  # type: ignore[arg-type]
 
@@ -114,6 +118,7 @@ def complete_drill(
     correct: int = Query(default=0, ge=0),
     total: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
+    user: User = Depends(current_user),
 ):
     """Record a finished drill.
 
@@ -123,12 +128,13 @@ def complete_drill(
     """
     if kind not in DRILL_KINDS:
         raise HTTPException(status_code=404, detail=f"Unknown drill '{kind}'.")
-    _get_course(course_id, db)
+    _get_course(course_id, db, user.id)
 
     record_event(
         db,
         DRILL_COMPLETED,
         {"course_id": course_id, "kind": kind, "correct": correct, "total": total},
+        user_id=user.id,
     )
-    evaluate_achievements(db)
+    evaluate_achievements(db, user_id=user.id)
     return None

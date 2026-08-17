@@ -13,8 +13,10 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from app.auth.deps import current_user
+from app.auth.ownership import get_owned_lesson
 from app.database import get_db
-from app.models import Lesson
+from app.models import Lesson, User
 from app.services.lesson_chat import stream_chat
 
 router = APIRouter(prefix="/lessons", tags=["chat"])
@@ -31,10 +33,13 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/{lesson_id}/chat")
-def chat(lesson_id: str, body: ChatRequest, db: Session = Depends(get_db)):
-    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found")
+def chat(
+    lesson_id: str,
+    body: ChatRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    lesson = get_owned_lesson(db, lesson_id, user.id)
 
     history = [{"role": m.role, "content": m.content} for m in body.history]
 
@@ -42,14 +47,14 @@ def chat(lesson_id: str, body: ChatRequest, db: Session = Depends(get_db)):
     full_response: list[str] = []
 
     def _generate():
-        user_id = str(uuid.uuid4())
+        msg_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)
         db.execute(
             text("""
                 INSERT INTO lesson_chat_messages (id, lesson_id, role, content, created_at)
                 VALUES (:id, :lesson_id, :role, :content, :now)
             """),
-            {"id": user_id, "lesson_id": lesson_id, "role": "user", "content": body.message, "now": now},
+            {"id": msg_id, "lesson_id": lesson_id, "role": "user", "content": body.message, "now": now},
         )
         db.commit()
 
@@ -94,10 +99,12 @@ def chat(lesson_id: str, body: ChatRequest, db: Session = Depends(get_db)):
 
 
 @router.get("/{lesson_id}/chat/history")
-def chat_history(lesson_id: str, db: Session = Depends(get_db)):
-    lesson = db.query(Lesson).filter(Lesson.id == lesson_id).first()
-    if not lesson:
-        raise HTTPException(status_code=404, detail="Lesson not found")
+def chat_history(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    get_owned_lesson(db, lesson_id, user.id)
 
     rows = db.execute(
         text("""
