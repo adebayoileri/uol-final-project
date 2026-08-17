@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { Dumbbell, Library, LogOut, Menu, RotateCcw, X } from 'lucide-react'
+import { Dumbbell, Library, Menu, RotateCcw, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { springDefault, springSheet, fadeFast } from '../../motion/springs'
 import { getReviewQueue } from '../../api'
 import Container from './Container'
 import Logo from './Logo'
+import UserMenu from './UserMenu'
 import { useAuth } from '../../auth/AuthContext'
 
 /** Named for their contents rather than as vague umbrellas. */
@@ -31,7 +32,7 @@ function useScrolled(threshold = 8) {
 export default function TopNav() {
   const scrolled = useScrolled()
   const location = useLocation()
-  const { status, user, logout } = useAuth()
+  const { status } = useAuth()
   const isAuthed = status === 'authed'
   const [menuOpen, setMenuOpen] = useState(false)
   const [dueNow, setDueNow] = useState(0)
@@ -117,20 +118,7 @@ export default function TopNav() {
           )}
 
           <div className="flex items-center gap-2">
-            {isAuthed && user && (
-              <div className="hidden items-center gap-3 sm:flex">
-                <span className="text-caption text-fg-subtle max-w-40 truncate" title={user.email}>
-                  {user.email}
-                </span>
-                <button
-                  onClick={() => void logout()}
-                  className="text-fg-muted hover:text-fg hover:bg-surface-raised inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-callout transition-colors"
-                >
-                  <LogOut size={15} aria-hidden="true" />
-                  Sign out
-                </button>
-              </div>
-            )}
+            {isAuthed && <UserMenu />}
 
             {isAuthed && (
             <button
@@ -179,15 +167,6 @@ export default function TopNav() {
                     )}
                   </NavLink>
                 ))}
-                {user && (
-                  <button
-                    onClick={() => void logout()}
-                    className="text-callout text-fg-muted hover:text-fg hover:bg-surface-raised mt-1 flex min-h-11 items-center gap-3 rounded-md px-3 transition-colors"
-                  >
-                    <LogOut size={16} aria-hidden="true" />
-                    Sign out
-                  </button>
-                )}
               </nav>
             </Container>
           </motion.div>
