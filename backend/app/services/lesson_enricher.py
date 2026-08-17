@@ -14,7 +14,6 @@ call asking for every lesson in a course has to ration its output across up to
 import json
 import logging
 import os
-import re
 import threading
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -23,6 +22,10 @@ import httpx
 from sqlalchemy.orm import Session
 
 from app.services.content_parser import parse_lesson_body
+
+# Shared with diagram_generator. Re-exported under the original private name so
+# the existing tests that pin this scanner's behaviour keep importing it here.
+from app.services.llm_json import extract_json_object as _extract_object
 
 if TYPE_CHECKING:
     from app.models import Lesson
@@ -118,27 +121,6 @@ def _call_ollama(prompt: str) -> str:
         response = client.post(f"{OLLAMA_BASE_URL}/api/generate", json=payload)
         response.raise_for_status()
     return response.json()["response"]
-
-
-def _extract_object(raw: str) -> dict[str, Any]:
-    """Pull the first balanced JSON object out of a model response."""
-    cleaned = re.sub(r"```(?:json)?\s*", "", raw).strip()
-    start = cleaned.find("{")
-    if start == -1:
-        raise ValueError("no JSON object in response")
-
-    depth = 0
-    for i, ch in enumerate(cleaned[start:], start):
-        if ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                try:
-                    return json.loads(cleaned[start : i + 1])
-                except json.JSONDecodeError:
-                    break
-    return json.loads(cleaned)
 
 
 def _normalise(obj: dict[str, Any]) -> dict[str, Any]:

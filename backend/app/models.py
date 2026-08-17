@@ -1,3 +1,4 @@
+import json
 import uuid
 from datetime import datetime
 
@@ -93,6 +94,10 @@ class Lesson(Base):
     # from `description` because that column feeds question prompts verbatim and
     # is indexed for search — JSON in either place would be a regression.
     content_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Diagram specifications as a JSON array, generated lazily after enrichment.
+    # NULL and '[]' mean different things: NULL is "not attempted", '[]' is
+    # "attempted, and no diagram helps this lesson" — a cacheable answer.
+    diagram_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     module: Mapped["Module"] = relationship("Module", back_populates="lessons")
     objectives: Mapped[list["Objective"]] = relationship(
@@ -114,6 +119,22 @@ class Lesson(Base):
             return None
         parsed = parse_lesson_body(self.content_json)
         return {k: v for k, v in parsed.items() if k != "is_structured"}
+
+    @property
+    def diagrams(self) -> list[dict] | None:
+        """Parsed diagram specs, or None if generation has not been attempted.
+
+        Tolerant by design: a row that somehow holds unparseable JSON reads as
+        "no diagrams" rather than breaking the lesson page, which is the same
+        bargain `content` makes.
+        """
+        if self.diagram_json is None:
+            return None
+        try:
+            parsed = json.loads(self.diagram_json)
+        except (TypeError, ValueError):
+            return []
+        return parsed if isinstance(parsed, list) else []
 
 
 class Objective(Base):

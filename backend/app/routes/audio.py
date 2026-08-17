@@ -81,6 +81,14 @@ def _build_narration_text(lesson: Lesson) -> str:
         if pitfall:
             parts.append(pitfall)
 
+    # A diagram's caption is the sentence it exists to make, so a listener who
+    # never sees the figure still gets the point. The specification itself is
+    # coordinates and ids — never narrate it.
+    for diagram in lesson.diagrams or []:
+        caption = str(diagram.get("caption", "")).strip()
+        if caption:
+            parts.append(caption)
+
     # practice_prompts are deliberately excluded: read aloud with no pause for
     # an answer, they only confuse.
 

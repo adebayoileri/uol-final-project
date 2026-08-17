@@ -10,8 +10,9 @@ from app.auth.deps import current_user
 from app.auth.ownership import get_owned_lesson
 from app.database import get_db
 from app.models import Card as DBCard, Lesson, Module, Question, User
-from app.schemas import LessonEnrichResponse, QuestionResponse
+from app.schemas import LessonDiagramResponse, LessonEnrichResponse, QuestionResponse
 from app.services.answer_evaluator import embed
+from app.services.diagram_generator import diagram_lock, ensure_diagrams
 from app.services.embeddings import index_question
 from app.achievements.engine import evaluate_achievements
 from app.services.events import LESSON_COMPLETED, record_event
@@ -128,6 +129,51 @@ def enrich_lesson_content(
             detail="Deeper lesson content is temporarily unavailable. Please try again.",
         )
     return LessonEnrichResponse(status="generated", content=lesson.content)
+
+
+@router.post("/{lesson_id}/diagram", response_model=LessonDiagramResponse)
+def generate_lesson_diagrams(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Generate (or return cached) diagram specs for a lesson.
+
+    Requires the lesson to be enriched first: a diagram illustrates the key
+    concepts and worked example, and asking for one from a title alone produces
+    decoration. The client calls this after /enrich succeeds.
+    """
+    lesson = get_owned_lesson(
+        db,
+        lesson_id,
+        user.id,
+        selectinload(Lesson.module).selectinload(Module.course),
+    )
+
+    if not lesson.content_json:
+        raise HTTPException(
+            status_code=409,
+            detail="This lesson needs its content generated before a diagram.",
+        )
+
+    if lesson.diagram_json is not None:
+        return LessonDiagramResponse(status="cached", diagrams=lesson.diagrams or [])
+
+    with diagram_lock(lesson_id):
+        # Same reason as /enrich: a request that blocked here loaded `lesson`
+        # before waiting, so its Session still holds the pre-generation value.
+        # Without expiring it the double-check reads stale and generates anyway.
+        db.expire(lesson, ["diagram_json"])
+        if lesson.diagram_json is not None:
+            return LessonDiagramResponse(status="cached", diagrams=lesson.diagrams or [])
+        diagrams = ensure_diagrams(lesson, db)
+
+    if diagrams is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Diagrams are temporarily unavailable. Please try again.",
+        )
+    return LessonDiagramResponse(status="generated", diagrams=diagrams)
 
 
 @router.get("/{lesson_id}/questions", response_model=list[QuestionResponse])

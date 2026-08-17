@@ -192,6 +192,13 @@ class LessonEnrichResponse(BaseModel):
     content: LessonContent | None
 
 
+class LessonDiagramResponse(BaseModel):
+    status: Literal["cached", "generated"]
+    # Validated on the way in by app.diagram_spec; passed through as plain
+    # dicts on the way out so a new diagram kind needs no change here.
+    diagrams: list[dict]
+
+
 class LessonDetailResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
@@ -205,3 +212,6 @@ class LessonDetailResponse(BaseModel):
     questions: list["QuestionResponse"]
     # Populated from the Lesson.content property; None until enriched.
     content: LessonContent | None = None
+    # From Lesson.diagrams. None until generation has been attempted; an empty
+    # list means the model was asked and correctly said no diagram helps.
+    diagrams: list[dict] | None = None

@@ -175,6 +175,7 @@ CROSS_USER_ROUTES = [
     ("GET", "/lessons/{lesson_id}/questions"),
     ("POST", "/lessons/{lesson_id}/complete"),
     ("POST", "/lessons/{lesson_id}/enrich"),
+    ("POST", "/lessons/{lesson_id}/diagram"),
     ("POST", "/lessons/{lesson_id}/narration"),
     ("GET", "/lessons/{lesson_id}/chat/history"),
 ]

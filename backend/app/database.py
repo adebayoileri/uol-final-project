@@ -30,6 +30,9 @@ def _run_migrations() -> None:
             # Structured lesson body, generated lazily on first open.
             # NULL means "not yet enriched" — an explicit state, not inferred.
             "ALTER TABLE lessons ADD COLUMN content_json TEXT",
+            # Diagram specs, generated lazily after enrichment. NULL means "not
+            # attempted"; '[]' means "attempted, no diagram helps here".
+            "ALTER TABLE lessons ADD COLUMN diagram_json TEXT",
             # Ownership. Nullable at the column level because SQLite cannot add
             # a NOT NULL column to a populated table; the ORM declares it
             # non-null, and fresh installs get the real constraint from
