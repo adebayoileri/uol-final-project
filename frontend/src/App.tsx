@@ -21,6 +21,8 @@ import CompletionScreen from './pages/CompletionScreen'
 import CourseTimeline from './pages/CourseTimeline'
 import NotFound from './pages/NotFound'
 import KitchenSink from './pages/KitchenSink'
+import Login from './pages/Login'
+import RequireAuth from './auth/RequireAuth'
 
 /** Each route picks the container width that suits its content. */
 function Page({ width, children }: { width: ContainerWidth; children: React.ReactNode }) {
@@ -36,6 +38,8 @@ function App() {
   // Only a running session is a focus surface. The hub at /review is a
   // browsing surface and keeps its footer.
   const focusMode =
+    location.pathname === '/login' ||
+    location.pathname === '/register' ||
     location.pathname === '/review/session' ||
     /^\/courses\/[^/]+\/review$/.test(location.pathname)
 
@@ -54,6 +58,26 @@ function App() {
         <ErrorBoundary key={location.pathname}>
           <PageTransition>
             <Routes location={location}>
+              {/* Public. Everything else sits under the guard below. */}
+              <Route
+                path="/login"
+                element={
+                  <Page width="medium">
+                    <Login mode="login" />
+                  </Page>
+                }
+              />
+              <Route
+                path="/register"
+                element={
+                  <Page width="medium">
+                    <Login mode="register" />
+                  </Page>
+                }
+              />
+
+              {/* Pathless layout route: one insertion guards all 18 pages. */}
+              <Route element={<RequireAuth />}>
               <Route
                 path="/"
                 element={
@@ -202,6 +226,7 @@ function App() {
                   </Page>
                 }
               />
+              </Route>
             </Routes>
           </PageTransition>
         </ErrorBoundary>

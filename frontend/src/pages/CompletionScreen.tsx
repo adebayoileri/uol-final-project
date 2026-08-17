@@ -20,8 +20,8 @@ import {
   type CourseResponse,
   type MasteryResponse,
   type ReviewQueueResponse,
+  authFetch,
 } from '../api'
-import { API_URL } from '../config'
 import MasteryBar from '../components/MasteryBar'
 import AchievementCard from '../components/AchievementCard'
 import Confetti from '../components/review/Confetti'
@@ -79,7 +79,7 @@ export default function CompletionScreen() {
     if (!courseId) return
     setDownloading(true)
     try {
-      const res = await fetch(`${API_URL}/courses/${courseId}/certificate`)
+      const res = await authFetch(`/courses/${courseId}/certificate`)
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.detail ?? `Error ${res.status}`)

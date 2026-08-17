@@ -13,6 +13,7 @@ import {
 import AudioPlayer from '../components/AudioPlayer'
 import AIAssistantPanel from '../components/AIAssistantPanel'
 import LessonBody, { type EnrichState } from '../components/lesson/LessonBody'
+import { useAuth } from '../auth/AuthContext'
 import LessonCompleteBar from '../components/lesson/LessonCompleteBar'
 import QuestionDeck, { GenerateQuestionsPrompt } from '../components/lesson/QuestionDeck'
 import { Badge, Card, ErrorState, IconBadge, LessonSkeleton, useToast } from '../components/ui'
@@ -28,8 +29,13 @@ export default function LessonView() {
   const [generating, setGenerating] = useState(false)
   const [completing, setCompleting] = useState(false)
 
+  const { user } = useAuth()
+  // Namespaced by user: on a shared browser this key would otherwise resume
+  // one account at another's position.
+  const qKey = user && lessonId ? `u:${user.id}:lesson:${lessonId}:qi` : null
+
   const [qIndex, setQIndex] = useState<number>(() => {
-    const saved = lessonId ? localStorage.getItem(`lesson-${lessonId}-qi`) : null
+    const saved = qKey ? localStorage.getItem(qKey) : null
     return saved ? parseInt(saved, 10) : 0
   })
 
@@ -65,8 +71,8 @@ export default function LessonView() {
   }, [fetchLesson])
 
   useEffect(() => {
-    if (lessonId) localStorage.setItem(`lesson-${lessonId}-qi`, String(qIndex))
-  }, [lessonId, qIndex])
+    if (qKey) localStorage.setItem(qKey, String(qIndex))
+  }, [qKey, qIndex])
 
   // Fires after the lesson has painted — the reader already has the title,
   // objectives, prose and practice deck before this starts.

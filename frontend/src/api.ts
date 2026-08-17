@@ -82,11 +82,55 @@ export interface GradeResponse {
   state: number;
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+
+/**
+ * Registered by AuthProvider. This module has no React context, so a 401 is
+ * reported back through a callback rather than a hook.
+ */
+let onUnauthorized: (() => void) | null = null;
+
+export function setUnauthorizedHandler(fn: (() => void) | null) {
+  onUnauthorized = fn;
+}
+
+/** Thrown on 401 so callers can distinguish "signed out" from a real failure. */
+export class UnauthorizedError extends Error {
+  constructor() {
+    super("Not signed in");
+    this.name = "UnauthorizedError";
+  }
+}
+
+/**
+ * The one place every request goes through.
+ *
+ * `credentials: "include"` is required for the session cookie to cross from
+ * :5173 to :8000. `...init` is spread BEFORE headers are built, because the
+ * previous shape let a caller-supplied `headers` replace the object wholesale.
+ */
+export async function authFetch(path: string, init?: RequestInit): Promise<Response> {
+  // FormData must NOT get a JSON content-type: the browser has to set the
+  // multipart boundary itself, and overriding it makes FastAPI return 422.
+  const isForm = init?.body instanceof FormData;
+
   const res = await fetch(`${API_URL}${path}`, {
-    headers: { "Content-Type": "application/json" },
     ...init,
+    credentials: "include",
+    headers: {
+      ...(isForm ? {} : { "Content-Type": "application/json" }),
+      ...((init?.headers as Record<string, string> | undefined) ?? {}),
+    },
   });
+
+  if (res.status === 401) {
+    onUnauthorized?.();
+    throw new UnauthorizedError();
+  }
+  return res;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const res = await authFetch(path, init);
 
   if (res.status === 204) {
     return null as T;
@@ -484,10 +528,41 @@ export async function checkPronunciation(
   form.append("audio", audio, `recording.${ext}`);
   form.append("expected_text", expectedText);
   form.append("language", language);
-  const res = await fetch(`${API_URL}/pronunciation-check`, { method: "POST", body: form });
+  const res = await authFetch("/pronunciation-check", { method: "POST", body: form });
   if (!res.ok) {
     const body = await res.json().catch(() => null);
     throw new Error(body?.detail ?? `Request failed with status ${res.status}`);
   }
   return res.json();
+}
+
+
+// ── Authentication ─────────────────────────────────────────────────────────
+
+export interface AuthUser {
+  id: string;
+  email: string;
+}
+
+export function register(email: string, password: string): Promise<AuthUser> {
+  return request<AuthUser>("/auth/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function login(email: string, password: string): Promise<AuthUser> {
+  return request<AuthUser>("/auth/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function logout(): Promise<null> {
+  return request<null>("/auth/logout", { method: "POST" });
+}
+
+/** Resolves the current session. Throws UnauthorizedError when signed out. */
+export function getMe(): Promise<AuthUser> {
+  return request<AuthUser>("/auth/me");
 }

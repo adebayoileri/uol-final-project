@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion } from 'motion/react'
 import { Send, Sparkles } from 'lucide-react'
 import { useSSE } from '../hooks/useSSE'
+import { authFetch } from '../api'
 import { API_URL } from '../config'
 import { Button, Card, Textarea } from './ui'
 import { springDefault } from '../motion/springs'
@@ -59,7 +60,7 @@ export default function AIAssistantPanel({ lessonId }: AIAssistantPanelProps) {
   }, [])
 
   useEffect(() => {
-    fetch(`${API_URL}/lessons/${lessonId}/chat/history`)
+    authFetch(`/lessons/${lessonId}/chat/history`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
       .then((data: Array<{ role: string; content: string }>) => {
         setMessages(

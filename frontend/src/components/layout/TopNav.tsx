@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, NavLink, useLocation } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, motion } from 'motion/react'
-import { Dumbbell, Library, Menu, RotateCcw, X } from 'lucide-react'
+import { Dumbbell, Library, LogOut, Menu, RotateCcw, X } from 'lucide-react'
 import { cn } from '../../lib/cn'
 import { springDefault, springSheet, fadeFast } from '../../motion/springs'
 import { getReviewQueue } from '../../api'
 import Container from './Container'
 import Logo from './Logo'
+import { useAuth } from '../../auth/AuthContext'
 
 /** Named for their contents rather than as vague umbrellas. */
 const LINKS = [
@@ -30,12 +31,20 @@ function useScrolled(threshold = 8) {
 export default function TopNav() {
   const scrolled = useScrolled()
   const location = useLocation()
+  const { status, user, logout } = useAuth()
+  const isAuthed = status === 'authed'
   const [menuOpen, setMenuOpen] = useState(false)
   const [dueNow, setDueNow] = useState(0)
 
   // Refresh the due badge whenever the route changes — cheap, and keeps the
   // number honest after a review session.
   useEffect(() => {
+    // Gated on auth: otherwise this 401s on every render of the login page and
+    // trips the global unauthorized handler in a loop.
+    if (!isAuthed) {
+      setDueNow(0)
+      return
+    }
     let cancelled = false
     getReviewQueue()
       .then((q) => {
@@ -47,7 +56,7 @@ export default function TopNav() {
     return () => {
       cancelled = true
     }
-  }, [location.pathname])
+  }, [location.pathname, isAuthed])
 
   useEffect(() => setMenuOpen(false), [location.pathname])
 
@@ -72,6 +81,7 @@ export default function TopNav() {
             <span className="text-headline text-fg hidden sm:inline">SuperLearned</span>
           </Link>
 
+          {isAuthed && (
           <LayoutGroup id="nav">
             <nav className="hidden items-center gap-1 sm:flex" aria-label="Main">
               {LINKS.map(({ to, label }) => (
@@ -104,15 +114,35 @@ export default function TopNav() {
               ))}
             </nav>
           </LayoutGroup>
+          )}
 
-          <button
-            onClick={() => setMenuOpen((o) => !o)}
+          <div className="flex items-center gap-2">
+            {isAuthed && user && (
+              <div className="hidden items-center gap-3 sm:flex">
+                <span className="text-caption text-fg-subtle max-w-40 truncate" title={user.email}>
+                  {user.email}
+                </span>
+                <button
+                  onClick={() => void logout()}
+                  className="text-fg-muted hover:text-fg hover:bg-surface-raised inline-flex min-h-9 items-center gap-1.5 rounded-md px-2.5 text-callout transition-colors"
+                >
+                  <LogOut size={15} aria-hidden="true" />
+                  Sign out
+                </button>
+              </div>
+            )}
+
+            {isAuthed && (
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
             aria-expanded={menuOpen}
             aria-label={menuOpen ? 'Close menu' : 'Open menu'}
             className="text-fg-muted hover:text-fg hover:bg-surface-raised -mr-2 rounded-md p-2 transition-colors sm:hidden"
           >
-            {menuOpen ? <X size={20} /> : <Menu size={20} />}
-          </button>
+              {menuOpen ? <X size={20} /> : <Menu size={20} />}
+            </button>
+            )}
+          </div>
         </div>
       </Container>
 
@@ -149,6 +179,15 @@ export default function TopNav() {
                     )}
                   </NavLink>
                 ))}
+                {user && (
+                  <button
+                    onClick={() => void logout()}
+                    className="text-callout text-fg-muted hover:text-fg hover:bg-surface-raised mt-1 flex min-h-11 items-center gap-3 rounded-md px-3 transition-colors"
+                  >
+                    <LogOut size={16} aria-hidden="true" />
+                    Sign out
+                  </button>
+                )}
               </nav>
             </Container>
           </motion.div>

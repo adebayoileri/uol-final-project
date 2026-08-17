@@ -26,6 +26,7 @@ export function useSSE(url: string, opts: SSEOptions) {
 
       try {
         const res = await fetch(url, {
+          credentials: 'include',
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(body),

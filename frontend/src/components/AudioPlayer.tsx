@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { motion, LayoutGroup } from 'motion/react'
 import { Headphones, Pause, Play } from 'lucide-react'
+import { authFetch } from '../api'
 import { API_URL } from '../config'
 import { Card, Spinner } from './ui'
 import { springDefault } from '../motion/springs'
@@ -47,7 +48,7 @@ export default function AudioPlayer({ lessonId }: AudioPlayerProps) {
     setError(null)
 
     try {
-      const res = await fetch(`${API_URL}/lessons/${lessonId}/narration`, { method: 'POST' })
+      const res = await authFetch(`/lessons/${lessonId}/narration`, { method: 'POST' })
       if (!res.ok) {
         const body = await res.json().catch(() => null)
         throw new Error(body?.detail ?? `Server error ${res.status}`)
