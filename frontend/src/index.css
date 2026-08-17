@@ -145,13 +145,7 @@
   --radius-2xl: 1.5rem;
   --radius-3xl: 2rem;
 
-  /* ── Elevation ────────────────────────────────────────── */
-  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-e2: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
-  --shadow-e3: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
-  --shadow-e4: 0 28px 60px -16px rgb(0 0 0 / 0.7), 0 4px 12px rgb(0 0 0 / 0.5);
-  --shadow-glow: 0 0 0 1px var(--color-brand-700), 0 8px 32px -8px rgb(124 83 247 / 0.45);
-  --shadow-inset-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+  /* Elevation is deliberately NOT in @theme — see the block below @theme. */
 
   /* ── Motion ───────────────────────────────────────────── */
   --ease-standard: cubic-bezier(0.32, 0.72, 0, 1);
@@ -179,6 +173,38 @@
     70%, 100% { box-shadow: 0 0 0 10px rgb(251 113 133 / 0); }
   }
 }
+
+/* ── Elevation ──────────────────────────────────────────────────────────────
+   These are plain custom properties rather than @theme tokens, and the
+   utilities are written out by hand. That is not stylistic.
+
+   Tailwind resolves a `--shadow-*` theme key at BUILD time: `shadow-e1` in
+   @theme compiles to `.shadow-e1{--tw-shadow:0 1px 2px var(--tw-shadow-color,#0006)}`
+   — the value is inlined, and no `var(--shadow-e1)` survives into the output.
+   A per-theme override of `--shadow-e1` would then be dead CSS, and light mode
+   would inherit the dark theme's 40–70% black shadows on a white canvas.
+   Keeping the token out of @theme keeps the var reference at RUNTIME, which is
+   what makes it themeable at all.
+
+   Cost of doing it this way: these no longer compose with `ring-*` or accept a
+   `shadow-<color>` modifier. Nothing uses either combination.
+   -------------------------------------------------------------------------- */
+
+:root {
+  --shadow-e1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-e2: 0 2px 8px -2px rgb(0 0 0 / 0.5), 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-e3: 0 12px 28px -8px rgb(0 0 0 / 0.6), 0 2px 6px rgb(0 0 0 / 0.4);
+  --shadow-e4: 0 28px 60px -16px rgb(0 0 0 / 0.7), 0 4px 12px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 0 1px var(--color-brand-700), 0 8px 32px -8px rgb(124 83 247 / 0.45);
+  --shadow-inset-edge: inset 0 1px 0 0 rgb(255 255 255 / 0.05);
+}
+
+@utility shadow-e1 { box-shadow: var(--shadow-e1); }
+@utility shadow-e2 { box-shadow: var(--shadow-e2); }
+@utility shadow-e3 { box-shadow: var(--shadow-e3); }
+@utility shadow-e4 { box-shadow: var(--shadow-e4); }
+@utility shadow-glow { box-shadow: var(--shadow-glow); }
+@utility shadow-inset-edge { box-shadow: var(--shadow-inset-edge); }
 
 /* ── Light theme ────────────────────────────────────────────────────────────
    Dark lives in @theme above and is the bare :root default, so it is
