@@ -63,9 +63,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     if (theme === 'system') root.removeAttribute('data-theme')
     else root.setAttribute('data-theme', theme)
 
+    // Every theme-color tag, not just the unqualified one. index.html ships a
+    // media-qualified pair so the browser chrome is right before JS runs, and
+    // the spec returns the FIRST tag whose media matches — which is still the
+    // OS preference, not ours. With the OS in dark and the user having chosen
+    // light, updating only the unqualified tag would leave the dark one
+    // matching and winning, so the chrome would stay dark over a light page.
+    // Setting them all makes whichever the browser picks the right answer.
     document
-      .querySelector('meta[name="theme-color"]:not([media])')
-      ?.setAttribute('content', CANVAS[resolved])
+      .querySelectorAll('meta[name="theme-color"]')
+      .forEach((tag) => tag.setAttribute('content', CANVAS[resolved]))
   }, [theme, resolved])
 
   const setTheme = useCallback((next: ThemePreference) => {
