@@ -5,8 +5,9 @@ from fastapi.responses import Response
 from sqlalchemy.orm import Session, selectinload
 
 from agents.course_agent import generate_course
+from app.auth.deps import current_user
 from app.database import get_db
-from app.models import Course, Lesson, Module, Objective
+from app.models import Course, Lesson, Module, Objective, User
 from app.schemas import (
     CourseSummaryResponse,
     CourseRequest,
@@ -26,8 +27,16 @@ router = APIRouter(prefix="/courses", tags=["courses"])
 
 
 @router.get("", response_model=list[CourseSummaryResponse])
-def list_courses(db: Session = Depends(get_db)) -> list[CourseSummaryResponse]:
-    courses = db.query(Course).order_by(Course.created_at.desc()).all()
+def list_courses(
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> list[CourseSummaryResponse]:
+    courses = (
+        db.query(Course)
+        .filter(Course.user_id == user.id)
+        .order_by(Course.created_at.desc())
+        .all()
+    )
     result = []
     for course in courses:
         ps = course_progress(course.id, db)
@@ -42,7 +51,11 @@ def list_courses(db: Session = Depends(get_db)) -> list[CourseSummaryResponse]:
 
 
 @router.post("", response_model=CourseResponse, status_code=201)
-def create_course(body: CourseRequest, db: Session = Depends(get_db)) -> CourseResponse:
+def create_course(
+    body: CourseRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+) -> CourseResponse:
     """Generate a structured course via Ollama and persist it to SQLite."""
     try:
         course_data = generate_course(
@@ -58,6 +71,7 @@ def create_course(body: CourseRequest, db: Session = Depends(get_db)) -> CourseR
         ) from exc
 
     course = Course(
+        user_id=user.id,
         goal=body.goal,
         duration=body.duration,
         category=body.category,

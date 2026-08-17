@@ -12,6 +12,7 @@ from app.routes.search import router as search_router
 from app.routes.speech import router as speech_router
 from app.routes.audio import router as audio_narration_router
 from app.routes.audio_serve import router as audio_serve_router
+from app.auth.routes import router as auth_router
 from app.routes.achievements import router as achievements_router
 from app.routes.drills import router as drills_router
 from app.routes.chat import router as chat_router
@@ -38,6 +39,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Ungated: registration, login and logout must be reachable without a session.
+app.include_router(auth_router)
 
 app.include_router(courses_router)
 app.include_router(lessons_router)

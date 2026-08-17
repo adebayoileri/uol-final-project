@@ -17,6 +17,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models import Card, Course, Lesson, Module, Question
+from tests.conftest import TEST_USER_ID
 
 
 @pytest.fixture()
@@ -59,6 +60,7 @@ def client(test_engine):
 
 def _seed_course(db_session, title: str, category: str = "Programming") -> Course:
     course = Course(
+        user_id=TEST_USER_ID,
         goal=f"Learn {title}",
         duration="short_term",
         category=category,

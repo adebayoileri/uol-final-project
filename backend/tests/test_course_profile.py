@@ -9,10 +9,12 @@ import pytest
 
 from app.models import Course
 from app.services.course_profile import profile_for_lesson, resolve_course_profile
+from tests.conftest import TEST_USER_ID
 
 
 def _course(goal: str, category: str, title: str) -> Course:
     return Course(
+        user_id=TEST_USER_ID,
         goal=goal,
         duration="short_term",
         category=category,

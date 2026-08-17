@@ -25,6 +25,7 @@ from app.services.answer_evaluator import (
     embed,
 )
 from app.services.question_generator import _parse_response
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # Shared DB / client fixtures (mirrors test_courses.py)
@@ -68,6 +69,7 @@ def lesson_id(test_engine):
     Session = sessionmaker(bind=test_engine)
     with Session() as db:
         course = Course(
+        user_id=TEST_USER_ID,
             id=str(uuid.uuid4()),
             goal="Learn Python for data science",
             duration="short_term",

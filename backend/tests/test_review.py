@@ -16,6 +16,7 @@ from sqlalchemy.pool import StaticPool
 from app.database import Base, get_db
 from app.main import app
 from app.models import Card, Course, Lesson, Module, Objective, Question, Review  # noqa: F401
+from tests.conftest import TEST_USER_ID
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +75,7 @@ def _seed_card(
     course_id overrides the generated course's id on the card for scope testing.
     """
     course = Course(
+        user_id=TEST_USER_ID,
         goal="Learn Python",
         duration="short_term",
         category="Programming",

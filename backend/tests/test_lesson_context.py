@@ -16,6 +16,7 @@ from app.database import Base
 from app.models import Course, Lesson, Module, Objective
 from app.services.lesson_chat import _build_context
 from app.services.question_generator import _build_context_blocks
+from tests.conftest import TEST_USER_ID
 
 CONTENT = {
     "key_concepts": [
@@ -51,6 +52,7 @@ def db_session():
 
 def _seed_lesson(db_session, content_json=None) -> Lesson:
     course = Course(
+        user_id=TEST_USER_ID,
         goal="Learn Python",
         duration="short_term",
         category="Programming",

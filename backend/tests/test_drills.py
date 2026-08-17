@@ -25,6 +25,7 @@ from app.services.drills import (
     drill_availability,
     load_course_lessons,
 )
+from tests.conftest import TEST_USER_ID
 
 TTS_PATCH = "app.routes.drills.synthesize_speech"
 
@@ -95,6 +96,7 @@ def client(test_engine):
 
 def _seed(db_session, *, lesson_contents, category="Programming", goal="Learn things", title="A Course"):
     course = Course(
+        user_id=TEST_USER_ID,
         goal=goal, duration="short_term", category=category, title=title, description="d"
     )
     db_session.add(course)

@@ -8,10 +8,47 @@ from app.database import Base
 from app.services.content_parser import parse_lesson_body
 
 
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Stored already normalised (stripped + lowercased) so the UNIQUE constraint
+    # is meaningful — "Bayo@X.com " and "bayo@x.com" must be one account.
+    email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    password_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+
+
+class AuthSession(Base):
+    """Server-side login session.
+
+    Named `auth_sessions` to avoid confusion with the unrelated `study_sessions`
+    table, which tracks 10-minute windows of learning activity. Server-side
+    rather than a JWT so logout can actually revoke.
+    """
+
+    __tablename__ = "auth_sessions"
+
+    # The opaque token held in the cookie. Not derived from anything.
+    id: Mapped[str] = mapped_column(Text, primary_key=True)
+    user_id: Mapped[str] = mapped_column(Text, ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime, server_default=func.now(), nullable=False
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    revoked: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+
 class Course(Base):
     __tablename__ = "courses"
 
     id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid.uuid4()))
+    # Nullable in the column so SQLite can add it to the populated dev database;
+    # every fresh install gets NOT NULL from create_all. create_course is the
+    # only writer and always sets it.
+    user_id: Mapped[str] = mapped_column(Text, ForeignKey("users.id"), nullable=False)
     goal: Mapped[str] = mapped_column(Text, nullable=False)
     duration: Mapped[str] = mapped_column(Text, nullable=False)
     category: Mapped[str] = mapped_column(Text, nullable=False)

@@ -23,6 +23,7 @@ from app.services.lesson_enricher import (
     _extract_object,
     generate_lesson_content,
 )
+from tests.conftest import TEST_USER_ID
 
 ENRICH_PATCH = "app.services.lesson_enricher._call_ollama"
 
@@ -96,6 +97,7 @@ def client(test_engine):
 
 def _seed_lesson(db_session, content_json: str | None = None) -> Lesson:
     course = Course(
+        user_id=TEST_USER_ID,
         goal="Learn Python file handling",
         duration="short_term",
         category="Programming",

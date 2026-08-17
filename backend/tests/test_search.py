@@ -13,6 +13,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.models import ContentEmbedding, Course, Lesson, Module
 from app.services.embeddings import index_lesson, index_question, search
+from tests.conftest import TEST_USER_ID
 
 # ---------------------------------------------------------------------------
 # DB / client fixtures (same pattern as test_questions.py)
@@ -61,6 +62,7 @@ def client(test_engine):
 def _make_lesson(db_session, title: str, description: str, course_id: str | None = None) -> Lesson:
     cid = course_id or str(uuid.uuid4())
     course = Course(
+        user_id=TEST_USER_ID,
         id=cid,
         goal="Test goal",
         duration="short_term",

@@ -19,6 +19,7 @@ from app.database import Base, get_db
 from app.main import app
 from app.models import Course, Lesson, Module, Objective
 from app.routes.audio import _build_narration_text, _chunk_text, _concat_wavs
+from tests.conftest import TEST_USER_ID
 
 CONTENT = {
     "key_concepts": [
@@ -90,6 +91,7 @@ def client(test_engine):
 
 def _seed_lesson(db_session, description="Files hold bytes on disk.", content_json=None) -> Lesson:
     course = Course(
+        user_id=TEST_USER_ID,
         goal="Learn Python",
         duration="short_term",
         category="Programming",
