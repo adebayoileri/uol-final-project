@@ -40,6 +40,29 @@ pnpm dev
 
 Backend runs at http://localhost:8000, frontend at http://localhost:5173.
 
+## Authentication
+
+The app requires an account. Create the first one either by registering through
+the UI at `/register`, or by seeding it:
+
+```bash
+cd backend
+SEED_USER_PASSWORD='choose-a-password' uv run python -m scripts.seed_user
+```
+
+This creates `bayo@superlearned.com` and adopts any pre-authentication data
+(courses, events, study sessions) into that account. It is safe to re-run — it
+only adopts rows that have no owner.
+
+The password is passed inline rather than read from `backend/.env`, because
+nothing in this project loads dotenv. The script exits non-zero if the variable
+is unset or under 8 characters, so there is never a default credential in the
+repository.
+
+Sessions are server-side with an `HttpOnly` cookie. The cookie is not `Secure`,
+which is required for it to work over `http://localhost`; a cross-host
+deployment would need `samesite="none"` and `secure=True` together.
+
 ## Environment variables
 
 Copy `backend/.env.example` to `backend/.env` and adjust as needed. All have working defaults if unset:

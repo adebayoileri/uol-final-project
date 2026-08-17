@@ -683,3 +683,82 @@ Consequential sub-decisions:
 Worth noting as a general lesson for the report: this defect was invisible to the test suite, because the fixtures used the newline-separated shape the prompt *specifies* rather than the inline shape the model *produces*. It only surfaced by running the generator against real stored content.
 
 **Status**: Active.
+
+----
+
+## 2026-08-17 — HttpOnly session cookie rather than a bearer token
+
+**Context**: The application needed authentication. A JWT in `localStorage` with an `Authorization` header is the more conventional choice and the easier one to write up.
+
+**Reason**: It is not viable here, and the constraint is structural rather than stylistic. `/audio/{filename}` is consumed by `new Audio(...)` in `AudioPlayer.tsx` and `ListenDrill.tsx`, and the certificate is fetched as a blob. A browser-issued media request **cannot carry an `Authorization` header**, so a bearer scheme would have required either signed short-lived URLs or rewriting both media paths to fetch-then-`createObjectURL`. A cookie is sent automatically: `new Audio(url)` issues a no-CORS request that carries it, and `localhost:5173` → `localhost:8000` is same-site (port is not part of "site"), so `SameSite=Lax` permits it. The media paths needed **zero** frontend changes.
+
+Two supporting points: CORS already had `allow_credentials=True` with a single explicit origin, so nothing there changed; and `HttpOnly` means the token is not readable by injected script, which `localStorage` cannot offer.
+
+Sessions are server-side (`auth_sessions`, opaque `secrets.token_urlsafe(32)`) rather than a signed stateless token, so logout genuinely revokes and the table doubles as a login record. `secure=False` is deliberate and commented — a `Secure` cookie is silently dropped over plain HTTP, which `http://localhost` is. A cross-host deployment would need `samesite="none"` with `secure=True` together.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Passwords hashed with stdlib `hashlib.scrypt`
+
+**Context**: Registration needs password hashing. bcrypt and argon2id are the standard answers.
+
+**Alternatives considered**: `passlib[bcrypt]` and `argon2-cffi` — both stronger, both requiring a compiled wheel. Days before a submission deadline, a dependency that can fail to build on a marker's machine is a real risk against a marginal security gain for a single-machine local application.
+
+**Reason**: `scrypt` is memory-hard, is in the standard library, and needs nothing installed. Parameters are `n=2^14, r=8, p=1` — OWASP's stated floor — with a 16-byte per-hash salt and an explicit `maxmem` (the OpenSSL default 32 MB cap would produce an opaque failure if `n` were ever raised). Measured at ~40 ms per hash on the target machine.
+
+The stored format is self-describing — `scrypt$n$r$p$salt$hash` — specifically so a rehash-on-login migration to argon2id stays open without a schema change. `verify_password` returns `False` rather than raising on a malformed value, because a corrupted column must fail the login, not 500 the route.
+
+**Status**: Active. Production would use argon2id; the encoded-parameter format is the migration path.
+
+----
+
+## 2026-08-17 — Single-owner-per-course, not enrolment
+
+**Context**: Deciding how far `user_id` needed to propagate.
+
+**Reason**: `Course` is the root of a strict tree — `Course → Module → Lesson → {Objective, Question → Card → Review}` — with single-valued foreign keys at every level and no join table, fork or share feature. So a `user_id` column is only needed in **four** places: `courses`, and the three genuinely global tables that have no path to a course (`user_events`, `study_sessions`, `user_achievements`). Everything else — chat messages, narration cache, certificate cache, content embeddings, questions, cards — is owned transitively, because a lesson belongs to exactly one course which belongs to exactly one user.
+
+`cards` was deliberately **not** given a denormalised `user_id` despite already carrying a denormalised `course_id`. A join cannot be wrong; a copied column can, and `cards.course_id` already has a drift-repair script. At 175 rows the subquery cost is unmeasurable. `Card.course_id.in_(...)` also fails *closed* on a NULL, which is the direction you want.
+
+**The limitation, stated plainly**: this is single-owner, not enrolment. `lessons.completed_at` living on the shared content row is precisely what makes it single-tenant. Supporting a course shared between learners would require an `enrolments(user_id, course_id)` join table and moving all per-user progress — completion, cards, chat, narration — out of the content tree. That is a restructure, not an addition.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Router-level dependency, not auth middleware
+
+**Context**: The gate had to cover 12 routers while leaving `/`, `/health`, the OpenAPI routes and `/auth/*` public.
+
+**Alternatives considered**: `@app.middleware("http")` or `add_middleware`. Rejected for three concrete reasons, each independently sufficient:
+1. **CORS ordering.** Starlette applies middleware in reverse, so an auth middleware added after `CORSMiddleware` becomes the outermost layer — 401 responses would then carry no `Access-Control-Allow-*` headers, the browser would report an opaque network error, and the frontend would never see the status to redirect on.
+2. **Streaming.** `POST /lessons/{id}/chat` returns an SSE `StreamingResponse`, and `BaseHTTPMiddleware` has a history of interacting badly with long-lived streams.
+3. **Testability.** Middleware cannot be disabled by `dependency_overrides`, which would have meant rewriting all 16 test files instead of adding one autouse fixture.
+
+**Reason**: `dependencies=[Depends(current_user)]` at `include_router` time. The exemptions fall out of the structure rather than a path-matching table: `/`, `/health` and the OpenAPI routes are declared on `app` rather than a router, and `/auth` is the one router included without the list. `test_route_coverage.py` walks `app.routes` and asserts the dependency is present on everything else, so a route added later cannot silently escape the gate.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Ownership violations return 404, not 403
+
+**Context**: When user B requests user A's course, the response could be 403 (exists, forbidden) or 404 (as if absent).
+
+**Reason**: 404, for two reasons. A 403 confirms the id exists, so a leaked URL, screenshot or log line becomes an existence oracle. And every one of these routes *already* raised 404 with the same detail string for an unknown id — reusing it meant the 22 `ErrorState` consumers, the frontend error handling and the existing tests needed no new branch at all. 403 is more debuggable; 404 is more private and cost nothing here.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Rate limiting deliberately out of scope
+
+**Context**: Login is unthrottled, as are the compute-heavy `/transcribe`, `/tts` and LLM endpoints.
+
+**Reason**: Account lockout is a self-inflicted denial of service during a live demonstration or a marking session, and there is no shared deployment for which throttling would be defending anything — the application runs on one machine for one person. The proportionate controls that *are* present: byte-identical responses for wrong-password and unknown-email (verified against a module-level dummy hash so the timing matches), an 8–128 character password bound (the maximum matters — without it a multi-megabyte password is a free 16 MiB-per-attempt hashing DoS), and session revocation on logout.
+
+Recorded rather than omitted because it is the obvious next control, and knowing why it was left out is part of the answer.
+
+**Status**: Deferred, deliberately.
