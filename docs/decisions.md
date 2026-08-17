@@ -816,3 +816,57 @@ The same class of problem, different mechanism, hit the logo. Its gradient ran `
 Related: the preference persists under a bare `theme` key rather than a user-namespaced one like `LessonView`'s bookmark, precisely because the login page renders before a `user` exists.
 
 **Status**: Active.
+
+----
+
+## 2026-08-17 — Diagrams are generated as semantic specs, never as SVG
+
+**Context**: Lessons were text-only. A chess lesson described the knight's move in prose and an ML lesson described a sigmoid in words. The request was for SVG and light animation rather than images — "where images might be overkill".
+
+**First, a finding**: there was no image-model implementation in the repository to build on. An exhaustive sweep — source, `pyproject.toml`, `uv.lock`, `.env*`, every branch, the full git history, the stash list — found nothing; `pillow` and `torch` are transitive dependencies of `sentence-transformers` and `weasyprint`. `docs/future-work.md` had recorded image and video generation as cut from scope. This turned out not to matter: the feature needs no image model at all.
+
+**Alternatives considered**: the model emitting SVG markup directly, sanitised and injected. Rejected for four independently sufficient reasons.
+1. **Reliability.** Asking `llama3.1:8b` for `{"at": "d4"}` is a request it can satisfy; asking it to place 64 `<rect>` elements by hand is one it fails at subtly, because a single wrong coordinate still parses and still renders.
+2. **Injection.** `react-markdown` v10 ships without `rehype-raw`, so raw HTML in lesson prose is already discarded, and the repo carries no sanitiser. Model SVG would have introduced both the app's first HTML-injection surface and its first sanitiser dependency.
+3. **Theme.** A model writing SVG writes `fill="#f0d9b5"`. Renderers write `var(--color-brand-500)`. The app resolves light and dark from the same markup, so a literal is correct in one theme and wrong in the other.
+4. **Motion.** SVG `<animate>`/SMIL is untouched by `MotionConfig reducedMotion="user"` and by the `prefers-reduced-motion` CSS block. Driving animation through motion/react keeps the existing guarantee.
+
+**Reason**: the model returns *meaning* and code computes *geometry*. It names one of four kinds — `board`, `graph`, `plot`, `geometry` — and fills semantic fields; the renderers derive every coordinate. This is the same bargain `drills.py` already makes, where drills are a deterministic function of stored content with no LLM call at render time.
+
+Two constraints inside the schema matter more than they look. A `plot` series is never an expression string: it is explicit points, or a named family (`sigmoid`, `normal`, …) with numeric parameters, so there is no path from generated text to anything evaluated. And a `geometry` shape is positioned from side lengths rather than coordinates, which is what turns "can this triangle exist" into a validator check instead of a drawing that silently comes out wrong.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Reject false claims, repair presentation
+
+**Context**: The validator has to decide what to do with a spec that is imperfect. Rejecting means the lesson gets no diagram; accepting means it may get a wrong one.
+
+**Reason**: The two are not symmetric, and the line between them is whether the flaw is a *claim about the world* or a *choice about presentation*.
+
+**Rejected**, because they are false: an edge to a node that does not exist; a triangle whose sides cannot close; an inverted axis range; a step referencing an element that is not in the diagram (which would play and highlight nothing); and — added after the fact, see below — highlighted squares a piece could not actually reach.
+
+**Repaired**, because they are stylistic: a `tree` layout whose data is not a tree, or a `chain` whose data branches, downgrades to `layered`, which draws both correctly. The nodes and edges have already been checked and they are the content; throwing them away over a layout keyword converts a correct picture into no picture. An over-long node label is clipped rather than rejected, since the renderer truncates far below the cap anyway and length carries no truth value.
+
+**Ignored**: unknown keys. A small model routinely adds a stray `"notes"`, and discarding a sound diagram over one trades a real diagram for none.
+
+**The asymmetry that decides all of these**: a missing diagram is invisible; a wrong one teaches something false. So the validator errs strict on truth and forgiving on form.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Piece movement is validated in code, not trusted to the model
+
+**Context**: Generating against the live Chess Fundamentals course produced a bishop on e2 highlighting a1, h8, a8, h1, c4 and f5. Only c4 is on a diagonal from e2.
+
+**Reason**: Every one of those is a legal square on an 8×8 board, so no structural check could reject it. It was drawable, plausible, and a completely false picture of how a bishop moves — the exact failure the whole semantic-spec design exists to prevent, arriving through the one door the design had left open.
+
+The principle was already stated: the model returns meaning, code computes geometry. Which squares a piece can reach *is* geometry. Trusting it to the model was simply an incomplete application of the project's own rule.
+
+Board specs are now checked against real movement for knight, bishop, rook, queen and king, accepting either letter or Unicode glyphs. Three deliberate exemptions keep it from over-firing: highlights may be a **subset** of the legal moves, since illustrating two of a knight's eight is legitimate; a piece's **own square** may be highlighted; and **pawns and non-chess glyphs skip the check entirely**, so a board used as a coordinate grid or a matrix is unconstrained.
+
+**The known limit, stated rather than implied**: this validates *geometry*, not *chess*. A castling diagram passed because the king's destination happened to lie on the rook's rank, and a caption claiming the king moves three squares cannot be checked at all. Reachability catches the class of error that was actually observed; it is not a rules engine.
+
+**Status**: Active.
