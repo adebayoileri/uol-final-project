@@ -54,6 +54,13 @@ This creates `bayo@superlearned.com` and adopts any pre-authentication data
 (courses, events, study sessions) into that account. It is safe to re-run — it
 only adopts rows that have no owner.
 
+Re-running does **not** change an existing account's password, so that adopting
+data can never alter credentials as a side effect. To set a new password:
+
+```bash
+SEED_USER_PASSWORD='new-password' uv run python -m scripts.seed_user --reset-password
+```
+
 The password is passed inline rather than read from `backend/.env`, because
 nothing in this project loads dotenv. The script exits non-zero if the variable
 is unset or under 8 characters, so there is never a default credential in the

@@ -9,11 +9,16 @@ because there is nothing orphaned.
 
     SEED_USER_PASSWORD='…' uv run python -m scripts.seed_user
 
+To change the password of an existing account, add --reset-password:
+
+    SEED_USER_PASSWORD='…' uv run python -m scripts.seed_user --reset-password
+
 The password is read from the environment and passed inline — nothing in this
 project loads a .env file, so putting it there would produce a script that
 always refuses to run.
 """
 
+import argparse
 import os
 import sys
 from pathlib import Path
@@ -35,6 +40,14 @@ ORPHAN_TABLES = ("courses", "user_events", "study_sessions")
 
 
 def main() -> int:
+    parser = argparse.ArgumentParser(description="Seed the first account and adopt orphaned data.")
+    parser.add_argument(
+        "--reset-password",
+        action="store_true",
+        help="Set the password of an existing account to SEED_USER_PASSWORD.",
+    )
+    args = parser.parse_args()
+
     password = os.environ.get("SEED_USER_PASSWORD")
     if not password:
         print(
@@ -63,8 +76,17 @@ def main() -> int:
             db.commit()
             db.refresh(user)
             print(f"Created user {SEED_EMAIL} ({user.id})")
+        elif args.reset_password:
+            user.password_hash = hash_password(password)
+            db.commit()
+            print(f"User {SEED_EMAIL} ({user.id}) — password updated")
         else:
-            print(f"User {SEED_EMAIL} already exists ({user.id}) — password unchanged")
+            # Not changed silently: re-running the adoption step should never be
+            # able to alter credentials as a side effect.
+            print(
+                f"User {SEED_EMAIL} already exists ({user.id}) — password unchanged.\n"
+                "  To set a new password, re-run with --reset-password"
+            )
 
         total = 0
         for table in ORPHAN_TABLES:
