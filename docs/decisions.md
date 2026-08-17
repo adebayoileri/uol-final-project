@@ -762,3 +762,57 @@ The stored format is self-describing — `scrypt$n$r$p$salt$hash` — specifical
 Recorded rather than omitted because it is the obvious next control, and knowing why it was left out is part of the answer.
 
 **Status**: Deferred, deliberately.
+
+----
+
+## 2026-08-17 — Light theme added as an override, never as an edit to dark
+
+**Context**: The application was dark-only — one `@theme` block, `color-scheme: dark`, hardcoded meta tags, and zero occurrences of `matchMedia` or `dark:` anywhere in `src/`.
+
+**Alternatives considered**: The conventional Tailwind approach is a `dark:` variant on every colour-bearing class. Rejected: it inverts the default — dark becomes the exception written 300+ times — and every one of those call sites is an opportunity to miss one, with no way to prove none were missed.
+
+**Reason**: Dark stays in `@theme` as the bare `:root` default and is **byte-identical** to before the file gained a second theme. Light is applied purely as an override through two selectors: `@media (prefers-color-scheme: light) :root:not([data-theme="dark"])` for following the OS, and `:root[data-theme="light"]` for an explicit choice. Making the change additive means the designed theme cannot regress, which matters concretely because every screenshot already in the report is dark.
+
+Two properties were verified against the compiled CSS *before* committing to this approach, because the whole plan rests on them:
+1. **Opacity modifiers resolve at runtime.** `bg-success/12` compiles to `color-mix(in oklab, var(--color-success) 12%, transparent)`, so retuning a hue per theme reaches all ~67 tint sites without touching a single className. (The static hex emitted alongside is the pre-`color-mix` fallback; a browser predating Chrome 111 / Safari 16.2 keeps dark-tuned tints. Accepted.)
+2. **Tokens are overridable.** They land on `:root,:host` as plain custom properties, and nothing uses `@theme inline`, so `:root[data-theme="…"]` wins on specificity.
+
+The claim is checked rather than asserted: diffing the compiled custom-property block against a build of the pre-theme commit shows **105 retained dark tokens, 0 changed values**. Three vars disappear only because Tailwind prunes vars with no remaining consumer (`brand-50`, `brand-900`, `white` were renamed to `on-heat-2`, `heat-1`, `on-brand`, each carrying an identical value).
+
+The light palette is tuned, not inverted. The surface ramp inverts in luminance while keeping its *role*: `surface` is white so cards lift off a grey `canvas`, and `surface-raised` goes **darker**, because it means "interactive", not "brighter". Semantic hues are deepened, since the dark palette's mint and amber at 8–15% over white are colourless washes.
+
+**Cost**: the two light blocks are necessarily duplicated — one lives inside a media query — and must be edited together or the toggle and the OS disagree. A comment says so, and the two blocks are diffable.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — Elevation and logo tokens deliberately kept out of `@theme`
+
+**Context**: Two tokens broke the assumption that a `@theme` value can be overridden per theme. Both failures were silent.
+
+**Reason**: **Tailwind resolves `@theme` keys at build time.** `--shadow-e1` in `@theme` compiles to `.shadow-e1{--tw-shadow:0 1px 2px var(--tw-shadow-color,#0006);…}` — the value is *inlined* and no `var(--shadow-e1)` survives into the output. The light theme's `--shadow-e1..e4` overrides were therefore dead CSS, and light mode would have painted the dark theme's 40–70% black shadows onto a white canvas. This is a bad failure mode precisely because it degrades gradually: the page still works, it just looks muddy, so it survives casual review.
+
+The six elevation tokens now live in a plain `:root` block with the utilities written out by hand, which keeps the `var()` reference at **runtime**. Cost: they no longer compose with `ring-*` or accept a `shadow-<color>` modifier. Neither is used — the only non-focus ring in the codebase sits on a heatmap cell carrying no shadow, and focus styling is `outline`-based.
+
+The same class of problem, different mechanism, hit the logo. Its gradient ran `brand-400 → brand-600`, but light retunes the upper brand ramp downward so brand-coloured *text* stays legible on white — which moved `brand-400` to `#6a3ce8`, exactly `brand-600`. The tile rendered as a flat fill with no gradient, and stopped matching `public/favicon.svg`. It now reads `--color-logo-from` / `--color-logo-to`, which hold still across all three theme states. These are also declared outside `@theme`, because their only consumer is a `var()` in a `.tsx` file rather than a utility class, and `@theme` prunes tokens no utility references.
+
+**The general lesson**, worth more than either fix: a design token is only themeable if a `var()` reference reaches the browser. "I overrode the token" and "the override has an effect" are different claims, and only the compiled stylesheet can distinguish them.
+
+**Status**: Active.
+
+----
+
+## 2026-08-17 — The theme control lives in an auth-gated user menu
+
+**Context**: `TopNav` rendered the email and Sign out inline, with Sign out duplicated again in the mobile drawer. The appearance control needed a home.
+
+**Alternatives considered**: A bare toggle button in the nav. Rejected because a two-state toggle cannot express "follow the OS" — once a user touches it they are pinned to an explicit choice with no way back, which defeats the chosen default.
+
+**Reason**: A single `UserMenu` replaces both Sign out sites and carries a three-option radiogroup (System / Light / Dark), making System a reachable state rather than merely an implied initial one.
+
+**Accepted consequence, stated rather than hidden**: the menu is auth-gated, so there is **no toggle on the login page**. Someone signing in still gets the correct theme, because the default follows the OS — they simply cannot override it until signed in. The alternative, duplicating the control into an unauthenticated surface, was not worth it for one screen.
+
+Related: the preference persists under a bare `theme` key rather than a user-namespaced one like `LessonView`'s bookmark, precisely because the login page renders before a `user` exists.
+
+**Status**: Active.
