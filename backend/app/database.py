@@ -30,6 +30,13 @@ def _run_migrations() -> None:
             # Structured lesson body, generated lazily on first open.
             # NULL means "not yet enriched" — an explicit state, not inferred.
             "ALTER TABLE lessons ADD COLUMN content_json TEXT",
+            # Ownership. Nullable at the column level because SQLite cannot add
+            # a NOT NULL column to a populated table; the ORM declares it
+            # non-null, and fresh installs get the real constraint from
+            # create_all. scripts/seed_user.py adopts the legacy rows.
+            "ALTER TABLE courses ADD COLUMN user_id TEXT",
+            "ALTER TABLE user_events ADD COLUMN user_id TEXT",
+            "ALTER TABLE study_sessions ADD COLUMN user_id TEXT",
         ]:
             try:
                 conn.execute(text(stmt))
@@ -103,6 +110,7 @@ def _run_migrations() -> None:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS user_events (
                     id TEXT PRIMARY KEY,
+                    user_id TEXT,
                     event_type TEXT NOT NULL,
                     occurred_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     metadata TEXT NOT NULL DEFAULT '{}'
@@ -114,6 +122,7 @@ def _run_migrations() -> None:
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS study_sessions (
                     id TEXT PRIMARY KEY,
+                    user_id TEXT,
                     started_at DATETIME NOT NULL,
                     last_activity_at DATETIME NOT NULL,
                     event_count INTEGER NOT NULL DEFAULT 0
@@ -123,18 +132,46 @@ def _run_migrations() -> None:
         except Exception:
             pass
 
-        # Achievements table
+        # Achievements table.
+        # The original schema had achievement_id UNIQUE globally, which meant
+        # the first user to unlock an achievement permanently blocked everyone
+        # else. Rebuild it with a composite unique. Guarded on the schema
+        # itself so this is idempotent: it fires once on a legacy database,
+        # never on a fresh one, and never again afterwards.
         try:
+            cols = {
+                r[1]
+                for r in conn.execute(text("PRAGMA table_info(user_achievements)")).fetchall()
+            }
+            if cols and "user_id" not in cols:
+                conn.execute(text("DROP TABLE user_achievements"))
+                conn.commit()
+
             conn.execute(text("""
                 CREATE TABLE IF NOT EXISTS user_achievements (
                     id TEXT PRIMARY KEY,
-                    achievement_id TEXT NOT NULL UNIQUE,
-                    unlocked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    user_id TEXT NOT NULL,
+                    achievement_id TEXT NOT NULL,
+                    unlocked_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (user_id, achievement_id)
                 )
             """))
             conn.commit()
         except Exception:
             pass
+
+        # Ownership indexes
+        for stmt in [
+            "CREATE INDEX IF NOT EXISTS ix_courses_user ON courses (user_id)",
+            "CREATE INDEX IF NOT EXISTS ix_events_user_time ON user_events (user_id, occurred_at)",
+            "CREATE INDEX IF NOT EXISTS ix_sessions_user_last ON study_sessions (user_id, last_activity_at)",
+            "CREATE INDEX IF NOT EXISTS ix_auth_sessions_user ON auth_sessions (user_id)",
+        ]:
+            try:
+                conn.execute(text(stmt))
+                conn.commit()
+            except Exception:
+                pass
 
         # Certificate cache table
         try:
