@@ -116,33 +116,56 @@ def collect_concepts(lessons: list[Lesson]) -> list[Concept]:
     return out
 
 
+# A leading "Step 3:" or "3." is how the model marks order, and it is exactly
+# what the ordering drill asks the learner to reconstruct. Requiring whitespace
+# after a bare number keeps "3.14 is pi" from being read as a marker.
+_STEP_MARKER_RE = re.compile(r"^\s*(?:step\s*\d+\s*[:.)\-]\s*|\d+\s*[.)]\s+)", re.IGNORECASE)
+
+
+def strip_step_marker(step: str) -> str:
+    """Remove the ordinal prefix from one step.
+
+    Load-bearing for the ordering drill: with the marker left in, every card
+    read "Step 1: …", "Step 2: …" while asking the learner to put them in
+    order. The drill was solvable without reading a word of it, which is worse
+    than having no drill at all — it looks like practice and tests nothing.
+    """
+    return _STEP_MARKER_RE.sub("", step, count=1).strip()
+
+
 def split_steps(worked_example: str) -> list[str]:
-    """Split a worked example into steps.
+    """Split a worked example into steps, without their ordinal markers.
 
     The enrichment prompt asks for newline-separated steps, but in practice the
     model routinely returns one line of "Step 1: ... Step 2: ...". Splitting on
     newlines alone left every real worked example looking like a single step,
     which made the ordering drill permanently unavailable — so fall back to the
     explicit markers.
+
+    The markers still drive the *split*; they are stripped afterwards. Splitting
+    on something and then keeping it were never the same decision.
     """
     if not worked_example:
         return []
 
+    def clean(parts: list[str]) -> list[str]:
+        return [stripped for p in parts if (stripped := strip_step_marker(p))]
+
     steps = [line.strip() for line in worked_example.splitlines() if line.strip()]
     if len(steps) >= MIN_ORDER_STEPS:
-        return steps
+        return clean(steps)
 
     # "Step 1: ..." / "Step 2: ..." run together on one line.
     marked = [s.strip() for s in re.split(r"(?=\bStep\s+\d+\s*[:.])", worked_example) if s.strip()]
     if len(marked) >= MIN_ORDER_STEPS:
-        return marked
+        return clean(marked)
 
     # "1. ... 2. ..." numbered prose.
     numbered = [s.strip() for s in re.split(r"(?=(?:^|\s)\d+\.\s)", worked_example) if s.strip()]
     if len(numbered) >= MIN_ORDER_STEPS:
-        return numbered
+        return clean(numbered)
 
-    return steps
+    return clean(steps)
 
 
 def collect_step_sets(lessons: list[Lesson]) -> list[dict[str, Any]]:

@@ -35,6 +35,20 @@ export default function ListenDrill() {
 
   useEffect(load, [load])
 
+  /**
+   * Stop the clip whenever it stops being the question.
+   *
+   * The previous cleanup ran on unmount only, but the score screen renders
+   * inside this same component — so finishing the drill did not unmount it and
+   * the last clip carried on playing over "Listening complete". `load` also
+   * clears `finished`, so this covers restart as well.
+   */
+  useEffect(() => {
+    if (!finished) return
+    audioRef.current?.pause()
+    setPlaying(false)
+  }, [finished])
+
   useEffect(() => () => audioRef.current?.pause(), [])
 
   const item = items?.[index]

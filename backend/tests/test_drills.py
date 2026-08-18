@@ -5,6 +5,8 @@ need Ollama. Piper is stubbed for the listening drill.
 """
 
 import json
+import random
+import re
 from unittest.mock import patch
 
 import pytest
@@ -41,7 +43,11 @@ def _content(n_concepts: int, steps: int = 4) -> str:
                 }
                 for i in range(n_concepts)
             ],
-            "worked_example": "\n".join(f"Step {i}: do the thing." for i in range(steps)),
+            # Bodies must differ once the ordinal marker is stripped, or the steps
+            # become indistinguishable and the ordering drill is unsolvable.
+            "worked_example": "\n".join(
+                f"Step {i}: do thing number {i}." for i in range(steps)
+            ),
             "common_pitfalls": [],
             "practice_prompts": [],
         }
@@ -220,10 +226,11 @@ def test_order_shuffles_and_can_be_solved(db_session):
     items = build_order(step_sets, 5, random.Random(1))
     assert items
     item = items[0]
-    assert item["steps"] != [f"Step {i}: do the thing." for i in range(5)], "must shuffle"
+    ordered = [f"do thing number {i}." for i in range(5)]
+    assert item["steps"] != ordered, "must shuffle"
     # correct_order holds display indices in the order they belong.
     restored = [item["steps"][i] for i in item["correct_order"]]
-    assert restored == [f"Step {i}: do the thing." for i in range(5)]
+    assert restored == ordered
 
 
 def test_order_skips_examples_with_too_few_steps(db_session):
@@ -321,14 +328,69 @@ def test_split_steps_handles_inline_markers():
     )
     steps = split_steps(raw)
     assert len(steps) == 4
-    assert steps[0].startswith("Step 1")
-    assert steps[3].startswith("Step 4")
+    assert steps[0].startswith("Open a file")
+    assert steps[3].startswith("Close the handle")
 
 
 def test_split_steps_handles_numbered_prose():
     from app.services.drills import split_steps
 
-    assert len(split_steps("1. First thing. 2. Second thing. 3. Third thing.")) == 3
+    assert split_steps("1. First thing. 2. Second thing. 3. Third thing.") == [
+        "First thing.",
+        "Second thing.",
+        "Third thing.",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# The ordering drill must not print its own answer
+# ---------------------------------------------------------------------------
+
+_MARKER_START = re.compile(r"^\s*(?:step\s*\d|\d+\s*[.)])", re.IGNORECASE)
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        "Step 1: a first thing.\nStep 2: a second thing.\nStep 3: a third thing.",
+        "Step 1: a first thing. Step 2: a second thing. Step 3: a third thing.",
+        "1. a first thing. 2. a second thing. 3. a third thing.",
+        "Step 1 - a first thing.\nStep 2 - a second thing.\nStep 3 - a third thing.",
+    ],
+    ids=["newline", "inline", "numbered", "dashed"],
+)
+def test_no_step_keeps_its_ordinal_marker(raw):
+    """With the marker left in, the drill is solvable without reading a word."""
+    from app.services.drills import split_steps
+
+    steps = split_steps(raw)
+    assert len(steps) == 3
+    for step in steps:
+        assert not _MARKER_START.match(step), f"{step!r} still leaks its position"
+
+
+def test_a_decimal_is_not_mistaken_for_a_marker():
+    from app.services.drills import split_steps
+
+    assert split_steps("3.14 is pi.\n2.71 is e.\n1.41 is root two.") == [
+        "3.14 is pi.",
+        "2.71 is e.",
+        "1.41 is root two.",
+    ]
+
+
+def test_order_items_carry_no_markers(db_session):
+    """End to end: what build_order hands the client must be marker-free."""
+    from app.services.drills import build_order, collect_step_sets, load_course_lessons
+
+    course = _seed(db_session, lesson_contents=[_content(3, steps=5)])
+    lessons = load_course_lessons(course.id, db_session)
+    items = build_order(collect_step_sets(lessons), 4, random.Random(0))
+
+    assert items, "expected at least one ordering item"
+    for item in items:
+        for step in item["steps"]:
+            assert not _MARKER_START.match(step)
 
 
 def test_split_steps_returns_few_when_there_is_no_structure():
