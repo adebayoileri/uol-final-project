@@ -15,6 +15,8 @@ Return at most 2 diagrams. Returning an empty list is a correct and common answe
 Choose ONE kind per diagram.
 
 "board" — a square grid: a chessboard, a coordinate grid, a matrix.
+  Use chess pieces ONLY if this course is actually about chess or another board game.
+  A board is not a generic picture of "layers", "stages" or "structure" — use "graph" for those.
   size: integer 4 to 8 (a chessboard is 8)
   pieces: [{{"at": "d4", "glyph": "N", "tone": "brand"}}]  — "at" is algebraic, file letter then rank digit
   highlight: ["e6", "f5"]  — squares to tint
@@ -57,6 +59,9 @@ The ids in show and highlight must be elements that exist in the diagram: a squa
 Rules:
 - Everything must be about {lesson_title} specifically and must be factually correct.
 - If a diagram would be decoration rather than explanation, return an empty list instead.
+- If none of the four kinds can express the idea honestly, return an empty list. Do NOT reach
+  for the nearest kind and fill it with unrelated content — a diagram about the wrong thing is
+  worse for the learner than no diagram, and it will be rejected anyway.
 - Do not invent a structure you are unsure of. One correct diagram beats two where one is wrong.
 - On a board, the highlighted squares must be ones the piece can actually reach from where you placed it. A bishop moves only on diagonals, a rook only along a file or rank, a knight only in an L. Squares that do not match the piece's movement will be rejected and the lesson will get no diagram at all.
 - Say only what your fields show. If you highlight six squares, do not write "eight" in the caption.

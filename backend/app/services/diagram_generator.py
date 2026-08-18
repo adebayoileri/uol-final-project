@@ -89,6 +89,18 @@ def _content_block(lesson: "Lesson") -> str:
     return "\n".join(lines) or "(no structured content available)"
 
 
+def _course_of(lesson: "Lesson"):
+    """The lesson's course, or None on a partially loaded graph.
+
+    Supplies the relevance context to validation: some checks need to know
+    what the lesson is about, not just whether the spec is self-consistent.
+    """
+    try:
+        return lesson.module.course
+    except AttributeError:
+        return None
+
+
 def _build_prompt(lesson: "Lesson") -> str:
     try:
         course = lesson.module.course
@@ -138,7 +150,7 @@ def generate_diagrams(lesson: "Lesson") -> list[dict[str, Any]]:
     for attempt in range(1, 3):
         try:
             raw = _call_ollama(prompt)
-            return validate_diagrams(extract_json_object(raw))
+            return validate_diagrams(extract_json_object(raw), course=_course_of(lesson))
         except (ValueError, KeyError, TypeError) as exc:
             # Pydantic's ValidationError and JSONDecodeError both subclass
             # ValueError, so a malformed response and an invalid spec land here

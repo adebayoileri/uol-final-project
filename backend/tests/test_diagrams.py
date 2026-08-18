@@ -156,13 +156,18 @@ def client(test_engine):
     app.dependency_overrides.clear()
 
 
-def _seed_lesson(db_session, content_json: str | None = LESSON_CONTENT) -> Lesson:
+def _seed_lesson(
+    db_session,
+    content_json: str | None = LESSON_CONTENT,
+    *,
+    chess: bool = False,
+) -> Lesson:
     course = Course(
         user_id=TEST_USER_ID,
-        goal="Learn Python file handling",
+        goal="How to play chess" if chess else "Learn Python file handling",
         duration="short_term",
-        category="Programming",
-        title="Python Files",
+        category="Games" if chess else "Programming",
+        title="Learning Chess Fundamentals" if chess else "Python Files",
         description="A short course.",
     )
     db_session.add(course)
@@ -343,6 +348,74 @@ def test_two_pieces_allow_the_union_of_their_moves():
     assert len(validate_diagrams({"diagrams": [spec]})) == 1
 
 
+# ---------------------------------------------------------------------------
+# Relevance, not just consistency. The live History-of-AI course cached a board
+# with a knight on d4 against a lesson on the perceptron: every square legal,
+# both highlights genuine knight moves, and completely unrelated to the subject.
+# ---------------------------------------------------------------------------
+
+class _FakeCourse:
+    def __init__(self, goal="", category="", title=""):
+        self.goal, self.category, self.title = goal, category, title
+
+
+CHESS_COURSE = _FakeCourse("How to play chess", "Games", "Learning Chess Fundamentals")
+AI_COURSE = _FakeCourse(
+    "Understand the history of AI", "Artificial Intelligence", "History of AI and ML"
+)
+
+
+def test_chess_board_rejected_on_a_non_board_game_course():
+    """The exact spec found cached against a lesson on the perceptron."""
+    spec = {
+        **BOARD,
+        "id": "perceptron-architecture",
+        "title": "Perceptron Architecture",
+        "caption": "The perceptron's architecture consists of input, weighted sum and output.",
+        "highlight": ["e6", "f5"],
+    }
+    with pytest.raises(ValueError, match="not about a board game"):
+        validate_diagrams({"diagrams": [spec]}, course=AI_COURSE)
+
+
+def test_the_same_board_is_fine_on_a_chess_course():
+    assert len(validate_diagrams({"diagrams": [BOARD]}, course=CHESS_COURSE)) == 1
+
+
+def test_a_non_chess_board_is_allowed_on_any_course():
+    """A coordinate grid or matrix must stay available to every subject."""
+    spec = {
+        **BOARD,
+        "size": 4,
+        "pieces": [{"at": "b2", "glyph": "x", "tone": "brand"}],
+        "highlight": ["c3", "d4"],
+    }
+    assert len(validate_diagrams({"diagrams": [spec]}, course=AI_COURSE)) == 1
+
+
+def test_pawns_count_as_chess_pieces_for_relevance():
+    """A pawn has no checkable movement but is unmistakably a chess piece."""
+    spec = {**BOARD, "pieces": [{"at": "e2", "glyph": "P"}], "highlight": []}
+    with pytest.raises(ValueError, match="not about a board game"):
+        validate_diagrams({"diagrams": [spec]}, course=AI_COURSE)
+
+
+def test_unicode_pieces_count_too():
+    spec = {**BOARD, "pieces": [{"at": "d4", "glyph": "♞"}], "highlight": ["e6"]}
+    with pytest.raises(ValueError, match="not about a board game"):
+        validate_diagrams({"diagrams": [spec]}, course=AI_COURSE)
+
+
+def test_without_a_course_the_relevance_gate_stays_open():
+    """Structural validation must remain usable on its own."""
+    assert len(validate_diagrams({"diagrams": [BOARD]})) == 1
+
+
+def test_graph_and_plot_are_never_gated_by_course():
+    assert len(validate_diagrams({"diagrams": [GRAPH]}, course=AI_COURSE)) == 1
+    assert len(validate_diagrams({"diagrams": [PLOT]}, course=CHESS_COURSE)) == 1
+
+
 def test_edge_to_unknown_node_rejected():
     """The single most likely model error, and invisible once drawn."""
     spec = {**GRAPH, "edges": [{"from": "open", "to": "write"}]}
@@ -460,15 +533,38 @@ def test_points_series_without_points_rejected():
         validate_diagrams({"diagrams": [spec]})
 
 
-def test_duplicate_diagram_id_rejected():
-    with pytest.raises(ValueError, match="duplicate diagram id"):
-        validate_diagrams({"diagrams": [BOARD, {**GRAPH, "id": BOARD["id"]}]})
+# Excess and duplication are form, not truth, so they are repaired rather than
+# used as a reason to throw away sound diagrams.
+
+def test_a_repeated_id_drops_the_later_diagram():
+    out = validate_diagrams({"diagrams": [BOARD, {**GRAPH, "id": BOARD["id"]}]})
+    assert [d["kind"] for d in out] == ["board"]
 
 
-def test_more_than_two_diagrams_rejected():
+def test_more_than_two_diagrams_is_capped_not_rejected():
     specs = [BOARD, {**GRAPH, "id": "g2"}, {**PLOT, "id": "p3"}]
-    with pytest.raises(ValueError):
-        validate_diagrams({"diagrams": specs})
+    out = validate_diagrams({"diagrams": specs})
+    assert [d["id"] for d in out] == ["knight-move", "g2"]
+
+
+def test_one_bad_diagram_does_not_discard_a_good_one():
+    """Seen live: a sound graph was thrown away because a board beside it was
+    off-board. The graph makes no false claim, so it survives."""
+    bad = {**BOARD, "id": "bad", "size": 4, "highlight": ["e4"]}
+    out = validate_diagrams({"diagrams": [GRAPH, bad]})
+    assert [d["kind"] for d in out] == ["graph"]
+
+
+def test_a_set_where_everything_fails_still_raises():
+    """Nothing usable is a real failure, and must burn a retry."""
+    bad = {**BOARD, "id": "bad", "size": 4, "highlight": ["e4"]}
+    with pytest.raises(ValueError, match="off a 4x4 board"):
+        validate_diagrams({"diagrams": [bad]})
+
+
+def test_a_non_list_diagrams_value_is_rejected():
+    with pytest.raises(ValueError, match="must be a list"):
+        validate_diagrams({"diagrams": "a chessboard"})
 
 
 # ---------------------------------------------------------------------------
@@ -539,20 +635,37 @@ def test_build_prompt_survives_an_unenriched_lesson(db_session):
 
 def test_generate_retries_then_succeeds(db_session):
     lesson = _seed_lesson(db_session)
-    with patch(DIAGRAM_PATCH, side_effect=["not json at all", _wrap(BOARD)]) as mock:
+    with patch(DIAGRAM_PATCH, side_effect=["not json at all", _wrap(GRAPH)]) as mock:
         diagrams = generate_diagrams(lesson)
     assert mock.call_count == 2
-    assert diagrams[0]["id"] == "knight-move"
+    assert diagrams[0]["id"] == "file-io"
 
 
 def test_generate_retries_on_an_invalid_spec(db_session):
     """A schema-valid but undrawable spec must burn a retry, not be stored."""
     lesson = _seed_lesson(db_session)
-    bad = _wrap({**BOARD, "highlight": ["z9"]})
-    with patch(DIAGRAM_PATCH, side_effect=[bad, _wrap(BOARD)]) as mock:
+    bad = _wrap({**GRAPH, "edges": [{"from": "open", "to": "write"}]})
+    with patch(DIAGRAM_PATCH, side_effect=[bad, _wrap(GRAPH)]) as mock:
         diagrams = generate_diagrams(lesson)
     assert mock.call_count == 2
-    assert diagrams[0]["highlight"] == BOARD["highlight"]
+    assert diagrams[0]["nodes"][0]["id"] == "open"
+
+
+def test_generation_passes_the_course_into_validation(db_session):
+    """A board is rejected for a Python course and accepted for a chess one.
+
+    The same spec, the same code path — only the course differs. Without the
+    course being threaded through, both would pass.
+    """
+    python_lesson = _seed_lesson(db_session)
+    with patch(DIAGRAM_PATCH, return_value=_wrap(BOARD)):
+        with pytest.raises(RuntimeError, match="after 2 attempts"):
+            generate_diagrams(python_lesson)
+
+    chess_lesson = _seed_lesson(db_session, chess=True)
+    with patch(DIAGRAM_PATCH, return_value=_wrap(BOARD)):
+        diagrams = generate_diagrams(chess_lesson)
+    assert diagrams[0]["kind"] == "board"
 
 
 def test_generate_gives_up_after_two_attempts(db_session):
@@ -576,14 +689,14 @@ def test_transport_error_is_not_retried(db_session):
 
 def test_endpoint_generates_and_caches(client, db_session):
     lesson = _seed_lesson(db_session)
-    with patch(DIAGRAM_PATCH, return_value=_wrap(BOARD)) as mock:
+    with patch(DIAGRAM_PATCH, return_value=_wrap(GRAPH)) as mock:
         first = client.post(f"/lessons/{lesson.id}/diagram")
         second = client.post(f"/lessons/{lesson.id}/diagram")
 
     assert first.status_code == 200
     assert first.json()["status"] == "generated"
     assert second.json()["status"] == "cached"
-    assert second.json()["diagrams"][0]["id"] == "knight-move"
+    assert second.json()["diagrams"][0]["id"] == "file-io"
     assert mock.call_count == 1
 
 
@@ -628,11 +741,11 @@ def test_unknown_lesson_is_404(client):
 def test_lesson_detail_exposes_diagrams(client, db_session):
     lesson = _seed_lesson(db_session)
     course_id = lesson.module.course_id
-    with patch(DIAGRAM_PATCH, return_value=_wrap(BOARD)):
+    with patch(DIAGRAM_PATCH, return_value=_wrap(GRAPH)):
         client.post(f"/lessons/{lesson.id}/diagram")
 
     detail = client.get(f"/courses/{course_id}/lessons/{lesson.id}").json()
-    assert detail["diagrams"][0]["kind"] == "board"
+    assert detail["diagrams"][0]["kind"] == "graph"
 
 
 def test_detail_diagrams_is_null_before_generation(client, db_session):
@@ -648,7 +761,7 @@ def test_concurrent_requests_generate_once(client, db_session):
     def slow(_prompt):
         import time
         time.sleep(0.15)
-        return _wrap(BOARD)
+        return _wrap(GRAPH)
 
     with patch(DIAGRAM_PATCH, side_effect=slow) as mock:
         with ThreadPoolExecutor(max_workers=2) as pool:

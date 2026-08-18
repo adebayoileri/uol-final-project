@@ -21,7 +21,16 @@ import math
 import re
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    TypeAdapter,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 
 # Caps exist to bound both the render and the prompt. A 40-node graph is not a
 # teaching aid, and an unbounded list is a way for one bad generation to make a
@@ -134,6 +143,16 @@ _GLYPH_ALIASES = {
 }
 
 
+def is_chess_glyph(glyph: str) -> bool:
+    """True for a piece letter or Unicode piece, pawns included.
+
+    Broader than the movement table on purpose: a pawn has no checkable
+    movement but is still unmistakably a chess piece.
+    """
+    letter = _GLYPH_ALIASES.get(glyph, glyph.upper())
+    return letter in _MOVES or letter == "P"
+
+
 def reachable_squares(glyph: str, at: str, size: int) -> set[str] | None:
     """Squares this piece could move to on an empty board.
 
@@ -198,6 +217,32 @@ class BoardDiagram(_DiagramBase):
                 )
 
         self._check_reachability(occupied)
+        return self
+
+    @model_validator(mode="after")
+    def _check_course_fit(self, info: ValidationInfo) -> "BoardDiagram":
+        """Chess pieces belong to courses that are about a board game.
+
+        A lesson on the perceptron generated a knight on d4 highlighting e6 and
+        f5. Every square was legal and the moves were genuine knight moves, so
+        every structural check passed — it was drawable, and it was nonsense.
+        Reachability proves a diagram is *consistent*; nothing before this
+        asked whether it was *relevant*.
+
+        `is_board_game` comes from the same resolver that already gates the
+        pronunciation drill on `is_language_course`. Absent context leaves the
+        gate open, so a spec validated without a course is unaffected. Boards
+        with non-chess glyphs — a coordinate grid, a matrix — are never gated.
+        """
+        if (info.context or {}).get("is_board_game", True):
+            return self
+
+        offenders = [p.glyph for p in self.pieces if is_chess_glyph(p.glyph)]
+        if offenders:
+            raise ValueError(
+                f"chess pieces {offenders} on a course that is not about a "
+                "board game — use a different kind, or no diagram"
+            )
         return self
 
     def _check_reachability(self, occupied: set[str]) -> None:
@@ -543,19 +588,74 @@ class DiagramSet(BaseModel):
         default_factory=list, max_length=MAX_DIAGRAMS_PER_LESSON
     )
 
-    @model_validator(mode="after")
-    def _unique_ids(self) -> "DiagramSet":
-        ids = [d.id for d in self.diagrams]
-        if len(set(ids)) != len(ids):
-            raise ValueError("duplicate diagram id")
-        return self
+
+_ONE_DIAGRAM = TypeAdapter(DiagramSpec)
 
 
-def validate_diagrams(payload: dict[str, Any]) -> list[dict[str, Any]]:
+def validate_diagrams(
+    payload: dict[str, Any],
+    course: Any = None,
+) -> list[dict[str, Any]]:
     """Validate a raw model response into storable diagram dicts.
+
+    Each diagram is validated **independently**, and a failure discards only
+    that diagram. A set of two where one is unsound used to be rejected whole,
+    which threw away a correct picture to punish an incorrect one — collateral
+    damage the design's own rule argues against, since the sound diagram makes
+    no false claim. Only when nothing survives is this a failure worth a retry.
+
+    Excess and duplication are treated as form rather than truth: more than
+    MAX_DIAGRAMS_PER_LESSON is capped and a repeated id is dropped, neither
+    being a reason to discard otherwise valid content.
+
+    `course` supplies the relevance context. Passing it enables the checks that
+    need to know what the lesson is *about*, as opposed to whether the spec is
+    internally consistent. Omitting it validates structure only.
 
     Raises ValueError (Pydantic's ValidationError subclasses it) so the caller's
     existing retry branch catches this the same way it catches a parse failure.
     """
-    parsed = DiagramSet.model_validate(payload)
-    return [d.model_dump(mode="json", by_alias=True) for d in parsed.diagrams]
+    raw = payload.get("diagrams") if isinstance(payload, dict) else None
+    if raw is None:
+        return []
+    if not isinstance(raw, list):
+        raise ValueError("`diagrams` must be a list")
+    if not raw:
+        return []
+
+    context: dict[str, Any] = {}
+    if course is not None:
+        from app.services.course_profile import resolve_course_profile
+
+        context["is_board_game"] = resolve_course_profile(course).is_board_game
+
+    kept: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
+    failures: list[str] = []
+
+    for item in raw:
+        if len(kept) >= MAX_DIAGRAMS_PER_LESSON:
+            break
+        try:
+            spec = _ONE_DIAGRAM.validate_python(item, context=context or None)
+        except ValidationError as exc:
+            failures.append(_first_message(exc))
+            continue
+
+        if spec.id in seen_ids:
+            continue
+        seen_ids.add(spec.id)
+        kept.append(spec.model_dump(mode="json", by_alias=True))
+
+    if not kept:
+        raise ValueError("; ".join(failures) or "no usable diagram in response")
+    return kept
+
+
+def _first_message(exc: ValidationError) -> str:
+    """The human half of a Pydantic error, without its documentation URL."""
+    for error in exc.errors():
+        message = str(error.get("msg", "")).removeprefix("Value error, ")
+        if message:
+            return message
+    return "invalid diagram"

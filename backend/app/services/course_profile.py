@@ -33,6 +33,14 @@ _TTS_VOICES: tuple[str, ...] = ("en", "es")
 
 _PYTHON_KEYWORDS: tuple[str, ...] = ("python", "django", "flask", "pandas", "numpy")
 
+# Courses for which a chessboard is a teaching aid rather than a non sequitur.
+# Added after a lesson on the perceptron generated a knight on d4: the board
+# was geometrically valid and completely unrelated to the subject.
+_BOARD_GAME_KEYWORDS: tuple[str, ...] = (
+    "chess", "checkers", "draughts", "go board", "shogi", "xiangqi",
+    "othello", "reversi",
+)
+
 
 @dataclass(frozen=True)
 class CourseProfile:
@@ -44,6 +52,10 @@ class CourseProfile:
     tts_language: Literal["en", "es"]
     #: True when code exercises should be Python specifically.
     is_python: bool
+    #: True when a board with chess pieces on it could plausibly be about
+    #: this course. Gates the `board` diagram kind the way `is_language_course`
+    #: already gates the pronunciation drill.
+    is_board_game: bool = False
 
     @property
     def is_language_course(self) -> bool:
@@ -83,6 +95,7 @@ def resolve_course_profile(course: "Course") -> CourseProfile:
         target_language=target_language,
         tts_language=tts_language,
         is_python=any(word in text for word in _PYTHON_KEYWORDS),
+        is_board_game=any(word in text for word in _BOARD_GAME_KEYWORDS),
     )
 
 
@@ -91,7 +104,9 @@ def profile_for_lesson(lesson) -> CourseProfile:
     try:
         return resolve_course_profile(lesson.module.course)
     except AttributeError:
-        return CourseProfile(target_language=None, tts_language="en", is_python=False)
+        return CourseProfile(
+            target_language=None, tts_language="en", is_python=False, is_board_game=False
+        )
 
 
 def supported_tts_languages() -> tuple[str, ...]:
