@@ -4,7 +4,7 @@ A local-first AI course creation system using multiple pre-trained models. Final
 
 ## Stack
 
-- **Frontend**: React + Vite + TypeScript (pnpm)
+- **Frontend**: React + Vite + TypeScript (Yarn)
 - **Backend**: FastAPI + Python 3.11+ (uv)
 - **Database**: SQLite (added in Phase 2)
 - **Models** (all local, added in later phases):
@@ -17,7 +17,7 @@ A local-first AI course creation system using multiple pre-trained models. Final
 Required:
 
 1. **Node 20+** — `brew install node@20` (or use nvm)
-2. **pnpm** — `npm install -g pnpm`
+2. **Yarn 3** — `corepack enable` (the version is pinned in `frontend/package.json`)
 3. **Python 3.11+** — `brew install python@3.11`
 4. **uv** — `curl -LsSf https://astral.sh/uv/install.sh | sh`
 5. **Ollama** — download from [ollama.com](https://ollama.com), then `ollama pull llama3.1:8b`
@@ -34,8 +34,8 @@ uv run uvicorn app.main:app --reload --port 8000
 
 # Frontend (separate terminal)
 cd frontend
-pnpm install
-pnpm dev
+yarn install
+yarn dev
 ```
 
 Backend runs at http://localhost:8000, frontend at http://localhost:5173.

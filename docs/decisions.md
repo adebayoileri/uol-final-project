@@ -870,3 +870,75 @@ Board specs are now checked against real movement for knight, bishop, rook, quee
 **The known limit, stated rather than implied**: this validates *geometry*, not *chess*. A castling diagram passed because the king's destination happened to lie on the rook's rank, and a caption claiming the king moves three squares cannot be checked at all. Reachability catches the class of error that was actually observed; it is not a rules engine.
 
 **Status**: Active.
+
+----
+
+## 2026-08-18 — Certificates rendered by fpdf2, not WeasyPrint
+
+**Context**: "Course certificate is non downloadable." Investigating found the feature had never worked once — `certificate_cache` held 0 rows and `data/certificates/` held 0 files, on a database with a fully completed, fully eligible course.
+
+**Reason**: `import weasyprint` is the first statement in `generate_certificate` and it raises `OSError: cannot load library 'libgobject-2.0-0'`. WeasyPrint ≥53 needs Pango, GLib and cairo installed as **system** libraries. `pyproject.toml` cannot express a native dependency, `uv sync` will never surface one, and the README documents `brew install whisper-cpp` and `ffmpeg` but nothing for this. A marker cloning the repo would have hit exactly the same wall.
+
+The alternative — `brew install pango` and a new README line — was rejected because it fixes one machine. This project's stated value is local-first and zero-ops; a silent native dependency contradicts that directly. **fpdf2 is pure Python with no compiled extension**, so `uv sync` is now genuinely the whole setup. The certificate is a static layout with four substituted values; it never needed an HTML engine.
+
+Two things fall out of laying the page out in code. The retired template was filled by `str.replace` on an HTML string with **no escaping**, and course titles are LLM-generated — that injection path is now gone. And because a core PDF font is Latin-1 only, generated titles are transliterated first, so a smart quote or an em dash degrades rather than raising.
+
+**Status**: Active.
+
+----
+
+## 2026-08-18 — An uncaught exception is not an error the client can see
+
+**Context**: The bug report contained a URL, a method, and an empty "Status Code".
+
+**Reason**: That emptiness was the second defect, not a detail of the first. Starlette's `ServerErrorMiddleware` sits **outside** `CORSMiddleware`, so an unhandled exception propagates past the CORS layer without it ever writing `Access-Control-Allow-Origin`. The browser then blocks the response and `fetch` rejects with a bare network error carrying no status at all. A raised `HTTPException`, by contrast, is handled by `ExceptionMiddleware` *inside* CORS and reaches the client intact.
+
+So a 500 in this application is not merely a worse status than a 503 — it is an *invisible* one. Rendering is now wrapped and returns 503 with a reason. The general rule: any handler that can fail on an external dependency must convert that failure into an `HTTPException`, or the user is told nothing and the developer is told nothing.
+
+**Status**: Active.
+
+----
+
+## 2026-08-18 — A diagram must be relevant, not merely drawable
+
+**Context**: A lesson on the perceptron had a chessboard cached against it — a knight on d4 highlighting e6 and f5, captioned "The perceptron's architecture consists of input, weighted sum, and output layers."
+
+**Reason**: It passed every check, **including the piece-reachability gate added the day before**, because e6 and f5 are genuine knight moves. That is the whole finding: every check to that point proved a spec was internally *consistent*, and none asked whether it was *relevant*. Consistent and absurd are perfectly compatible.
+
+Chess pieces now require a course that is about a board game. `is_board_game` lives in `course_profile` beside the resolution that already gates the pronunciation drill on `is_language_course`, and reads goal + category + title together for the same evidenced reason: `category` is free text and has been wrong before. Boards with non-chess glyphs — a coordinate grid, a matrix — remain available to every subject, so only the irrelevant case is closed. Validation takes an optional course; without one it checks structure only.
+
+**The related fix**: one bad diagram used to sink the whole set. A sound graph was discarded because a board beside it was off-board — collateral damage against this design's own rule, since the graph made no false claim. Diagrams are now validated **independently**; a failure drops only itself, and a retry fires only when nothing survives.
+
+**Cached specs had to be revalidated**, or the perceptron board would have outlived every fix: `diagram_json` is written once and kept forever, so anything stored under looser rules survives the rules tightening. `scripts/revalidate_diagrams.py` re-checks each cached spec and resets failures to NULL — the "not yet attempted" state — so they regenerate. This is the general answer whenever validation tightens, not a one-off `UPDATE`.
+
+**Status**: Active.
+
+----
+
+## 2026-08-18 — A drill that hands over its answer is worse than no drill
+
+**Context**: The ordering drill displayed "Step 1: …", "Step 2: …" while asking the learner to put the steps in order.
+
+**Reason**: `split_steps` splits on a lookahead, which *retains* the marker it matched. The drill was solvable without reading a word of the content. That is worse than the drill being absent: it occupies the same space, claims to be practice, and tests nothing — and it would have been demonstrated in exactly that state.
+
+The markers still drive the split, because that fallback exists for a reason (the model returns steps run together on one line). They are stripped afterwards. Splitting on something and keeping it were never the same decision.
+
+One asymmetry in the stripper: a bare number counts as a marker only when whitespace follows, so "3.14 is pi" is not read as step 3.
+
+**Worth recording**: the existing fixture had the same defect in miniature. Its steps were `"Step 0: do the thing."`, `"Step 1: do the thing."` — the ordinal was their *only* distinguishing feature, so stripping it made them identical and the shuffle assertion meaningless. A fixture that encodes the bug cannot detect it.
+
+**Status**: Active.
+
+----
+
+## 2026-08-18 — Display name required at registration, nullable in the column
+
+**Context**: The certificate said "The Learner" because the application had no idea who anyone was.
+
+**Reason**: `users.name` is nullable, and honestly so — accounts created before the column exist and nothing can invent a name for them. It is required at registration, absent for legacy rows, and rendered with an **email fallback** rather than a name derived from the email local part, which would be a guess displayed back to the person it is about.
+
+The structural decision is that `RegisterRequest` **subclasses** `Credentials` rather than the field being added to it. `Credentials` is shared with login, so putting `name` there would have made a display name mandatory to sign in and broken every existing client. The test that proves the split is the one asserting login still succeeds with no `name` in the body.
+
+The recipient is also part of the certificate **cache key**. The cache is keyed on course and only regenerates when mastery moves 5%, so without this someone who set their name after generating would keep a certificate addressed to "The Learner" for as long as their mastery held still.
+
+**Status**: Active.
