@@ -16,6 +16,7 @@ export default function Login({ mode }: Props) {
   const navigate = useNavigate()
   const location = useLocation()
 
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -33,7 +34,7 @@ export default function Login({ mode }: Props) {
     setBusy(true)
     setError(null)
     try {
-      await (isRegister ? register(email, password) : login(email, password))
+      await (isRegister ? register(email, password, name) : login(email, password))
       navigate(from, { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.')
@@ -59,7 +60,24 @@ export default function Login({ mode }: Props) {
 
         <Card padding="lg" elevation={2}>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <Field label="Email">
+            {isRegister && (
+          <Field label="Your name" hint="Shown on your certificates.">
+            {(p) => (
+              <Input
+                type="text"
+                autoComplete="name"
+                required
+                maxLength={80}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Ada Lovelace"
+                {...p}
+              />
+            )}
+          </Field>
+        )}
+
+        <Field label="Email">
               {(p) => (
                 <Input
                   type="email"

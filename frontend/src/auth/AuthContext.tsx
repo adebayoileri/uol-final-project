@@ -21,7 +21,7 @@ interface AuthContextValue {
   status: AuthStatus
   user: AuthUser | null
   login: (email: string, password: string) => Promise<void>
-  register: (email: string, password: string) => Promise<void>
+  register: (email: string, password: string, name: string) => Promise<void>
   logout: () => Promise<void>
 }
 
@@ -73,8 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus('authed')
   }, [])
 
-  const register = useCallback(async (email: string, password: string) => {
-    const u = await apiRegister(email, password)
+  const register = useCallback(async (email: string, password: string, name: string) => {
+    const u = await apiRegister(email, password, name)
     setUser(u)
     setStatus('authed')
   }, [])

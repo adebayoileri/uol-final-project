@@ -61,7 +61,7 @@ def client(test_engine, bypass_auth):
     app.dependency_overrides.clear()
 
 
-CREDS = {"email": "bayo@superlearned.com", "password": "correct-horse-battery"}
+CREDS = {"email": "bayo@superlearned.com", "password": "correct-horse-battery", "name": "Bayo"}
 
 
 # ---------------------------------------------------------------------------
@@ -74,6 +74,58 @@ def test_register_creates_account_and_signs_in(client):
     assert resp.json()["email"] == "bayo@superlearned.com"
     # Registration signs you in, so /me works immediately.
     assert client.get("/auth/me").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# Display name. The split of RegisterRequest from Credentials is what keeps
+# login's contract unchanged, so the test that proves it matters most is the
+# one asserting login still works with no name in the body.
+# ---------------------------------------------------------------------------
+
+def test_login_does_not_require_a_name(client):
+    """`name` is register-only. On Credentials it would break every client."""
+    client.post("/auth/register", json=CREDS)
+    res = client.post(
+        "/auth/login",
+        json={"email": CREDS["email"], "password": CREDS["password"]},
+    )
+    assert res.status_code == 200
+
+
+def test_registration_requires_a_name(client):
+    res = client.post(
+        "/auth/register",
+        json={"email": CREDS["email"], "password": CREDS["password"]},
+    )
+    assert res.status_code == 422
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 81])
+def test_unusable_names_are_rejected(client, name):
+    assert client.post("/auth/register", json={**CREDS, "name": name}).status_code == 422
+
+
+def test_name_is_stored_and_returned(client, db_session):
+    res = client.post("/auth/register", json={**CREDS, "name": "  Ada Lovelace  "})
+    assert res.status_code == 201
+    assert res.json()["name"] == "Ada Lovelace"
+    assert db_session.query(User).one().name == "Ada Lovelace"
+
+
+def test_me_reports_the_name(client):
+    client.post("/auth/register", json={**CREDS, "name": "Ada"})
+    assert client.get("/auth/me").json()["name"] == "Ada"
+
+
+def test_a_legacy_account_without_a_name_still_resolves(client, db_session):
+    """Rows predating the column must keep working, name reported as null."""
+    client.post("/auth/register", json=CREDS)
+    db_session.query(User).one().name = None
+    db_session.commit()
+
+    body = client.get("/auth/me").json()
+    assert body["name"] is None
+    assert body["email"] == CREDS["email"]
 
 
 def test_register_sets_an_httponly_cookie(client):

@@ -39,6 +39,9 @@ def _run_migrations() -> None:
             # create_all. scripts/seed_user.py adopts the legacy rows.
             "ALTER TABLE courses ADD COLUMN user_id TEXT",
             "ALTER TABLE user_events ADD COLUMN user_id TEXT",
+            # Display name, captured at registration. Nullable because accounts
+            # that predate it genuinely have none.
+            "ALTER TABLE users ADD COLUMN name TEXT",
             "ALTER TABLE study_sessions ADD COLUMN user_id TEXT",
         ]:
             try:

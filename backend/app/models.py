@@ -16,6 +16,10 @@ class User(Base):
     # Stored already normalised (stripped + lowercased) so the UNIQUE constraint
     # is meaningful — "Bayo@X.com " and "bayo@x.com" must be one account.
     email: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+    # Nullable, and honestly so: accounts created before this column existed
+    # have no name and nothing can invent one for them. Required at
+    # registration, absent for legacy rows, and rendered with an email fallback.
+    name: Mapped[str | None] = mapped_column(Text, nullable=True)
     password_hash: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.now(), nullable=False

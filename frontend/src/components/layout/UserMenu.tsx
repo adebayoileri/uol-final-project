@@ -42,6 +42,10 @@ export default function UserMenu() {
 
   if (!user) return null
 
+  // Accounts predating display names have none, and inventing one from the
+  // email local part would be a guess shown back to the person it is about.
+  const label = user.name?.trim() || user.email
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -52,9 +56,9 @@ export default function UserMenu() {
         className="text-fg-muted hover:text-fg hover:bg-surface-raised inline-flex min-h-9 max-w-52 items-center gap-2 rounded-md px-2.5 transition-colors"
       >
         <span className="bg-brand-500 text-on-brand text-caption grid size-6 shrink-0 place-items-center rounded-full font-medium uppercase">
-          {user.email.charAt(0)}
+          {label.charAt(0)}
         </span>
-        <span className="text-caption hidden truncate sm:inline">{user.email}</span>
+        <span className="text-caption hidden truncate sm:inline">{label}</span>
         <ChevronDown
           size={14}
           className={cn('shrink-0 transition-transform duration-[--duration-fast]', open && 'rotate-180')}
@@ -71,7 +75,12 @@ export default function UserMenu() {
             exit={{ opacity: 0, y: -6, scale: 0.98, transition: fadeFast }}
             className="border-border bg-surface-overlay shadow-e3 absolute right-0 z-50 mt-2 w-64 origin-top-right rounded-lg border p-3"
           >
-            <p className="text-caption text-fg-subtle mb-3 truncate sm:hidden">{user.email}</p>
+            <div className="mb-3 sm:hidden">
+              <p className="text-callout text-fg truncate">{label}</p>
+              {user.name && (
+                <p className="text-caption text-fg-subtle truncate">{user.email}</p>
+              )}
+            </div>
 
             <p className="text-eyebrow text-fg-subtle mb-2 uppercase">Appearance</p>
             <div

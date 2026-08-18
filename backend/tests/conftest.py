@@ -16,7 +16,7 @@ from app.main import app
 # A stand-in rather than a real row: the routes only ever read `.id`, and this
 # keeps tests independent of the users table existing in their schema.
 TEST_USER_ID = "test-user-0000"
-TEST_USER = SimpleNamespace(id=TEST_USER_ID, email="test@example.com")
+TEST_USER = SimpleNamespace(id=TEST_USER_ID, email="test@example.com", name=None)
 
 
 @pytest.fixture(autouse=True)

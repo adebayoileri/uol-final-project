@@ -46,6 +46,13 @@ def main() -> int:
         action="store_true",
         help="Set the password of an existing account to SEED_USER_PASSWORD.",
     )
+    # A flag rather than an environment variable: SEED_USER_PASSWORD is an env
+    # var precisely so a secret stays out of argv and shell history, and a
+    # display name is not a secret.
+    parser.add_argument(
+        "--name",
+        help="Display name for the seed account. Set or update it.",
+    )
     args = parser.parse_args()
 
     password = os.environ.get("SEED_USER_PASSWORD")
@@ -71,22 +78,34 @@ def main() -> int:
     try:
         user = db.query(User).filter(User.email == SEED_EMAIL).first()
         if user is None:
-            user = User(email=SEED_EMAIL, password_hash=hash_password(password))
+            user = User(
+                email=SEED_EMAIL,
+                name=args.name,
+                password_hash=hash_password(password),
+            )
             db.add(user)
             db.commit()
             db.refresh(user)
             print(f"Created user {SEED_EMAIL} ({user.id})")
-        elif args.reset_password:
-            user.password_hash = hash_password(password)
-            db.commit()
-            print(f"User {SEED_EMAIL} ({user.id}) — password updated")
         else:
-            # Not changed silently: re-running the adoption step should never be
-            # able to alter credentials as a side effect.
-            print(
-                f"User {SEED_EMAIL} already exists ({user.id}) — password unchanged.\n"
-                "  To set a new password, re-run with --reset-password"
-            )
+            changes = []
+            if args.reset_password:
+                user.password_hash = hash_password(password)
+                changes.append("password updated")
+            if args.name and args.name != user.name:
+                user.name = args.name
+                changes.append(f"name set to {args.name!r}")
+            if changes:
+                db.commit()
+                print(f"User {SEED_EMAIL} ({user.id}) — {', '.join(changes)}")
+            else:
+                # Not changed silently: re-running the adoption step should never
+                # be able to alter credentials as a side effect.
+                print(
+                    f"User {SEED_EMAIL} already exists ({user.id}) — nothing changed.\n"
+                    "  To set a new password, re-run with --reset-password\n"
+                    "  To set a display name, re-run with --name 'Your Name'"
+                )
 
         total = 0
         for table in ORPHAN_TABLES:

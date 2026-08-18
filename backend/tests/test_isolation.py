@@ -21,8 +21,8 @@ from app.database import Base, get_db
 from app.main import app
 from app.models import Card, Course, Lesson, Module, Question
 
-A_CREDS = {"email": "alice@example.com", "password": "alice-password-1"}
-B_CREDS = {"email": "bob@example.com", "password": "bob-password-11"}
+A_CREDS = {"email": "alice@example.com", "password": "alice-password-1", "name": "Alice"}
+B_CREDS = {"email": "bob@example.com", "password": "bob-password-11", "name": "Bob"}
 
 # Distinctive enough that a search hit could only come from A's content.
 SECRET_TOPIC = "zarquon flux capacitor calibration"

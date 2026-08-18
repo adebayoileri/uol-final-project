@@ -698,12 +698,18 @@ export async function checkPronunciation(
 export interface AuthUser {
   id: string;
   email: string;
+  /** Null for accounts created before display names existed. */
+  name: string | null;
 }
 
-export function register(email: string, password: string): Promise<AuthUser> {
+export function register(
+  email: string,
+  password: string,
+  name: string,
+): Promise<AuthUser> {
   return request<AuthUser>("/auth/register", {
     method: "POST",
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, password, name }),
   });
 }
 

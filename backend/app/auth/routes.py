@@ -45,11 +45,30 @@ class Credentials(BaseModel):
         return value.strip().lower() if isinstance(value, str) else value
 
 
+class RegisterRequest(Credentials):
+    """Registration only.
+
+    Deliberately a subclass rather than a field on Credentials, which is shared
+    with login: adding `name` there would have made it mandatory to sign in and
+    broken every existing client.
+    """
+
+    name: str = Field(..., min_length=1, max_length=80)
+
+    @field_validator("name", mode="before")
+    @classmethod
+    def _trim_name(cls, value):
+        return value.strip() if isinstance(value, str) else value
+
+
 class UserResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: str
     email: str
+    # Null for accounts created before display names existed. Clients render
+    # the email in its place rather than inventing one.
+    name: str | None = None
 
 
 def _normalise(email: str) -> str:
@@ -57,13 +76,13 @@ def _normalise(email: str) -> str:
 
 
 @router.post("/register", response_model=UserResponse, status_code=201)
-def register(body: Credentials, response: Response, db: Session = Depends(get_db)):
+def register(body: RegisterRequest, response: Response, db: Session = Depends(get_db)):
     email = _normalise(body.email)
 
     if db.query(User).filter(User.email == email).first():
         raise HTTPException(status_code=409, detail="An account with that email already exists.")
 
-    user = User(email=email, password_hash=hash_password(body.password))
+    user = User(email=email, name=body.name, password_hash=hash_password(body.password))
     db.add(user)
     db.commit()
     db.refresh(user)
