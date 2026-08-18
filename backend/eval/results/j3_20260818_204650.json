@@ -1,0 +1,515 @@
+{
+  "timestamp": "2026-08-18T20:46:50.891296",
+  "overall": {
+    "precision": 0.946,
+    "recall": 0.972,
+    "f1": 0.959,
+    "tp": 35,
+    "fp": 2,
+    "fn": 1,
+    "tn": 12
+  },
+  "per_category": {
+    "definition": {
+      "precision": 1.0,
+      "recall": 0.75,
+      "f1": 0.857,
+      "tp": 3,
+      "fp": 0,
+      "fn": 1,
+      "tn": 2
+    },
+    "comparison": {
+      "precision": 0.5,
+      "recall": 1.0,
+      "f1": 0.667,
+      "tp": 1,
+      "fp": 1,
+      "fn": 0,
+      "tn": 0
+    },
+    "function": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1
+    },
+    "control-flow": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1
+    },
+    "concept": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1
+    },
+    "ml": {
+      "precision": 0.889,
+      "recall": 1.0,
+      "f1": 0.941,
+      "tp": 8,
+      "fp": 1,
+      "fn": 0,
+      "tn": 3
+    },
+    "learning-science": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 4,
+      "fp": 0,
+      "fn": 0,
+      "tn": 2
+    },
+    "oop": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 3,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1
+    },
+    "data-structures": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 2,
+      "fp": 0,
+      "fn": 0,
+      "tn": 0
+    },
+    "python-specific": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 7,
+      "fp": 0,
+      "fn": 0,
+      "tn": 0
+    },
+    "databases": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "tp": 1,
+      "fp": 0,
+      "fn": 0,
+      "tn": 1
+    }
+  },
+  "details": [
+    {
+      "question": "What is a Python list?",
+      "category": "definition",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.742933988571167,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is a Python list?",
+      "category": "definition",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.27330291271209717,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is a Python list?",
+      "category": "definition",
+      "predicted": "incorrect",
+      "expected": "correct",
+      "score": 0.2958415448665619,
+      "signal": "embedding"
+    },
+    {
+      "question": "Explain the difference between a list and a tuple in Python.",
+      "category": "comparison",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6316965818405151,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "Explain the difference between a list and a tuple in Python.",
+      "category": "comparison",
+      "predicted": "correct",
+      "expected": "incorrect",
+      "score": 0.4202655851840973,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What does the len() function do in Python?",
+      "category": "function",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5932693481445312,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What does the len() function do in Python?",
+      "category": "function",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.21496392786502838,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is a for loop used for in Python?",
+      "category": "control-flow",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5566532015800476,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a for loop used for in Python?",
+      "category": "control-flow",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.14787721633911133,
+      "signal": "embedding"
+    },
+    {
+      "question": "Explain what recursion means in programming.",
+      "category": "concept",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.585222601890564,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "Explain what recursion means in programming.",
+      "category": "concept",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.2035646140575409,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is an API?",
+      "category": "definition",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7375666499137878,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is an API?",
+      "category": "definition",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.2141629159450531,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is machine learning?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5731440782546997,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is machine learning?",
+      "category": "ml",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.22428688406944275,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is supervised learning?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6506339907646179,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is supervised learning?",
+      "category": "ml",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.451565682888031,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "Describe what a neural network is.",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7324315905570984,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is overfitting in machine learning?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5399783253669739,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is overfitting in machine learning?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "incorrect",
+      "score": 0.43818700313568115,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the purpose of a training set?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.38096845149993896,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the purpose of a test set?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5561058521270752,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is gradient descent?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6635763049125671,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is gradient descent?",
+      "category": "ml",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.35495638847351074,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the difference between classification and regression?",
+      "category": "ml",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7555509805679321,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is spaced repetition?",
+      "category": "learning-science",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5724466443061829,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is spaced repetition?",
+      "category": "learning-science",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.35563746094703674,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is active recall?",
+      "category": "learning-science",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5844965577125549,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the spacing effect?",
+      "category": "learning-science",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.4354569911956787,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the Feynman technique?",
+      "category": "learning-science",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6492601037025452,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is the Feynman technique?",
+      "category": "learning-science",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.3100780248641968,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is Python used for?",
+      "category": "definition",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5090900659561157,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a variable in programming?",
+      "category": "concept",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5388621687889099,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a function in Python?",
+      "category": "concept",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7107207775115967,
+      "signal": "embedding"
+    },
+    {
+      "question": "What does return do in a Python function?",
+      "category": "concept",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.8022888898849487,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is a class in Python?",
+      "category": "oop",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.19399309158325195,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is inheritance in OOP?",
+      "category": "oop",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6283347606658936,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is encapsulation?",
+      "category": "oop",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5341246128082275,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is polymorphism?",
+      "category": "oop",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.643130362033844,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a dictionary in Python?",
+      "category": "data-structures",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5697520971298218,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a set in Python?",
+      "category": "data-structures",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7693504691123962,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is the difference between == and is in Python?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7569975852966309,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is list comprehension in Python?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6197479963302612,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a lambda function?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6243325471878052,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "Explain the concept of a closure.",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6228660345077515,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What is a generator in Python?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6923848986625671,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is a decorator in Python?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.5497861504554749,
+      "signal": "embedding+llm"
+    },
+    {
+      "question": "What does async/await do in Python?",
+      "category": "python-specific",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.7479250431060791,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is SQL?",
+      "category": "databases",
+      "predicted": "incorrect",
+      "expected": "incorrect",
+      "score": 0.24075496196746826,
+      "signal": "embedding"
+    },
+    {
+      "question": "What is normalisation in databases?",
+      "category": "databases",
+      "predicted": "correct",
+      "expected": "correct",
+      "score": 0.6337990164756775,
+      "signal": "embedding+llm"
+    }
+  ]
+}

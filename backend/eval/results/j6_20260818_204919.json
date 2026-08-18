@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-08-18T20:49:19.637653",
+  "n_trials": 3,
+  "stages": [
+    {
+      "label": "embed_reference",
+      "mean_s": 0.682,
+      "std_s": 0.952,
+      "n": 3
+    },
+    {
+      "label": "evaluate_answer_correct",
+      "mean_s": 25.903,
+      "std_s": 6.011,
+      "n": 3
+    },
+    {
+      "label": "evaluate_answer_wrong",
+      "mean_s": 0.038,
+      "std_s": 0.043,
+      "n": 3
+    },
+    {
+      "label": "content_parser",
+      "mean_s": 0.0,
+      "std_s": 0.0,
+      "n": 3
+    }
+  ]
+}

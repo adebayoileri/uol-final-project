@@ -1,0 +1,69 @@
+{
+  "timestamp": "2026-08-18T20:52:22.801776",
+  "results": [
+    {
+      "goal": "Learn Python basics for data science",
+      "category": "Python",
+      "total_lessons": 6,
+      "field_coverage": {
+        "key_concepts": 1.0,
+        "worked_example": 1.0,
+        "common_pitfalls": 1.0,
+        "practice_prompts": 1.0
+      },
+      "overall_score": 1.0
+    },
+    {
+      "goal": "Get conversational in Spanish in 2 weeks",
+      "category": "Spanish",
+      "total_lessons": 6,
+      "field_coverage": {
+        "key_concepts": 1.0,
+        "worked_example": 1.0,
+        "common_pitfalls": 1.0,
+        "practice_prompts": 1.0
+      },
+      "overall_score": 1.0
+    },
+    {
+      "goal": "Understand machine learning fundamentals",
+      "category": "AI/ML",
+      "total_lessons": 4,
+      "field_coverage": {
+        "key_concepts": 1.0,
+        "worked_example": 1.0,
+        "common_pitfalls": 1.0,
+        "practice_prompts": 1.0
+      },
+      "overall_score": 1.0
+    },
+    {
+      "goal": "Learn the basics of personal finance",
+      "category": "Finance",
+      "total_lessons": 4,
+      "field_coverage": {
+        "key_concepts": 1.0,
+        "worked_example": 1.0,
+        "common_pitfalls": 1.0,
+        "practice_prompts": 1.0
+      },
+      "overall_score": 1.0
+    },
+    {
+      "goal": "Understand modern web development",
+      "category": "Technology",
+      "total_lessons": 6,
+      "field_coverage": {
+        "key_concepts": 1.0,
+        "worked_example": 1.0,
+        "common_pitfalls": 1.0,
+        "practice_prompts": 1.0
+      },
+      "overall_score": 1.0
+    }
+  ],
+  "aggregate": {
+    "mean_overall_score": 1.0,
+    "n_courses": 5
+  }
+}

@@ -1,0 +1,675 @@
+{
+  "timestamp": "2026-08-18T22:12:28.002322",
+  "n": 50,
+  "source": "/Users/adebayo/Downloads/UOL/Final Project/ai-final-project/course-agent/backend/eval/results/j3_20260818_204650.json",
+  "single_threshold": [
+    {
+      "threshold": 0.2,
+      "precision": 0.75,
+      "recall": 1.0,
+      "f1": 0.857
+    },
+    {
+      "threshold": 0.25,
+      "precision": 0.837,
+      "recall": 1.0,
+      "f1": 0.911
+    },
+    {
+      "threshold": 0.3,
+      "precision": 0.854,
+      "recall": 0.972,
+      "f1": 0.909
+    },
+    {
+      "threshold": 0.35,
+      "precision": 0.875,
+      "recall": 0.972,
+      "f1": 0.921
+    },
+    {
+      "threshold": 0.4,
+      "precision": 0.919,
+      "recall": 0.944,
+      "f1": 0.932
+    },
+    {
+      "threshold": 0.45,
+      "precision": 0.971,
+      "recall": 0.917,
+      "f1": 0.943
+    },
+    {
+      "threshold": 0.5,
+      "precision": 1.0,
+      "recall": 0.917,
+      "f1": 0.957
+    },
+    {
+      "threshold": 0.55,
+      "precision": 1.0,
+      "recall": 0.778,
+      "f1": 0.875
+    },
+    {
+      "threshold": 0.6,
+      "precision": 1.0,
+      "recall": 0.556,
+      "f1": 0.714
+    },
+    {
+      "threshold": 0.65,
+      "precision": 1.0,
+      "recall": 0.333,
+      "f1": 0.5
+    },
+    {
+      "threshold": 0.7,
+      "precision": 1.0,
+      "recall": 0.25,
+      "f1": 0.4
+    },
+    {
+      "threshold": 0.75,
+      "precision": 1.0,
+      "recall": 0.111,
+      "f1": 0.2
+    },
+    {
+      "threshold": 0.8,
+      "precision": 1.0,
+      "recall": 0.028,
+      "f1": 0.054
+    }
+  ],
+  "best_single_threshold": {
+    "threshold": 0.5,
+    "precision": 1.0,
+    "recall": 0.917,
+    "f1": 0.957
+  },
+  "hybrid_live": {
+    "precision": 0.946,
+    "recall": 0.972,
+    "f1": 0.959
+  },
+  "escalation_rate": 0.56,
+  "grid": [
+    {
+      "low": 0.2,
+      "high": 0.25,
+      "f1": 0.911,
+      "precision": 0.837,
+      "recall": 1.0,
+      "escalated": 5
+    },
+    {
+      "low": 0.2,
+      "high": 0.3,
+      "f1": 0.909,
+      "precision": 0.854,
+      "recall": 0.972,
+      "escalated": 7
+    },
+    {
+      "low": 0.2,
+      "high": 0.35,
+      "f1": 0.921,
+      "precision": 0.875,
+      "recall": 0.972,
+      "escalated": 8
+    },
+    {
+      "low": 0.2,
+      "high": 0.4,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 11
+    },
+    {
+      "low": 0.2,
+      "high": 0.45,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 14
+    },
+    {
+      "low": 0.2,
+      "high": 0.5,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 15
+    },
+    {
+      "low": 0.2,
+      "high": 0.55,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 20
+    },
+    {
+      "low": 0.2,
+      "high": 0.6,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 28
+    },
+    {
+      "low": 0.2,
+      "high": 0.65,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 36
+    },
+    {
+      "low": 0.2,
+      "high": 0.7,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 39
+    },
+    {
+      "low": 0.2,
+      "high": 0.75,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 44
+    },
+    {
+      "low": 0.2,
+      "high": 0.8,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 47
+    },
+    {
+      "low": 0.2,
+      "high": 0.85,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 48
+    },
+    {
+      "low": 0.25,
+      "high": 0.3,
+      "f1": 0.909,
+      "precision": 0.854,
+      "recall": 0.972,
+      "escalated": 2
+    },
+    {
+      "low": 0.25,
+      "high": 0.35,
+      "f1": 0.921,
+      "precision": 0.875,
+      "recall": 0.972,
+      "escalated": 3
+    },
+    {
+      "low": 0.25,
+      "high": 0.4,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 6
+    },
+    {
+      "low": 0.25,
+      "high": 0.45,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 9
+    },
+    {
+      "low": 0.25,
+      "high": 0.5,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 10
+    },
+    {
+      "low": 0.25,
+      "high": 0.55,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 15
+    },
+    {
+      "low": 0.25,
+      "high": 0.6,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 23
+    },
+    {
+      "low": 0.25,
+      "high": 0.65,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 31
+    },
+    {
+      "low": 0.25,
+      "high": 0.7,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 34
+    },
+    {
+      "low": 0.25,
+      "high": 0.75,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 39
+    },
+    {
+      "low": 0.25,
+      "high": 0.8,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 42
+    },
+    {
+      "low": 0.25,
+      "high": 0.85,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 43
+    },
+    {
+      "low": 0.3,
+      "high": 0.35,
+      "f1": 0.921,
+      "precision": 0.875,
+      "recall": 0.972,
+      "escalated": 1
+    },
+    {
+      "low": 0.3,
+      "high": 0.4,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 4
+    },
+    {
+      "low": 0.3,
+      "high": 0.45,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 7
+    },
+    {
+      "low": 0.3,
+      "high": 0.5,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 8
+    },
+    {
+      "low": 0.3,
+      "high": 0.55,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 13
+    },
+    {
+      "low": 0.3,
+      "high": 0.6,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 21
+    },
+    {
+      "low": 0.3,
+      "high": 0.65,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 29
+    },
+    {
+      "low": 0.3,
+      "high": 0.7,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 32
+    },
+    {
+      "low": 0.3,
+      "high": 0.75,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 37
+    },
+    {
+      "low": 0.3,
+      "high": 0.8,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 40
+    },
+    {
+      "low": 0.3,
+      "high": 0.85,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 41
+    },
+    {
+      "low": 0.35,
+      "high": 0.4,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 3
+    },
+    {
+      "low": 0.35,
+      "high": 0.45,
+      "f1": 0.946,
+      "precision": 0.921,
+      "recall": 0.972,
+      "escalated": 6
+    },
+    {
+      "low": 0.35,
+      "high": 0.5,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 7
+    },
+    {
+      "low": 0.35,
+      "high": 0.55,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 12
+    },
+    {
+      "low": 0.35,
+      "high": 0.6,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 20
+    },
+    {
+      "low": 0.35,
+      "high": 0.65,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 28
+    },
+    {
+      "low": 0.35,
+      "high": 0.7,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 31
+    },
+    {
+      "low": 0.35,
+      "high": 0.75,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 36
+    },
+    {
+      "low": 0.35,
+      "high": 0.8,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 39
+    },
+    {
+      "low": 0.35,
+      "high": 0.85,
+      "f1": 0.959,
+      "precision": 0.946,
+      "recall": 0.972,
+      "escalated": 40
+    },
+    {
+      "low": 0.4,
+      "high": 0.45,
+      "f1": 0.932,
+      "precision": 0.919,
+      "recall": 0.944,
+      "escalated": 3
+    },
+    {
+      "low": 0.4,
+      "high": 0.5,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 4
+    },
+    {
+      "low": 0.4,
+      "high": 0.55,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 9
+    },
+    {
+      "low": 0.4,
+      "high": 0.6,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 17
+    },
+    {
+      "low": 0.4,
+      "high": 0.65,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 25
+    },
+    {
+      "low": 0.4,
+      "high": 0.7,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 28
+    },
+    {
+      "low": 0.4,
+      "high": 0.75,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 33
+    },
+    {
+      "low": 0.4,
+      "high": 0.8,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 36
+    },
+    {
+      "low": 0.4,
+      "high": 0.85,
+      "f1": 0.944,
+      "precision": 0.944,
+      "recall": 0.944,
+      "escalated": 37
+    },
+    {
+      "low": 0.45,
+      "high": 0.5,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 1
+    },
+    {
+      "low": 0.45,
+      "high": 0.55,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 6
+    },
+    {
+      "low": 0.45,
+      "high": 0.6,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 14
+    },
+    {
+      "low": 0.45,
+      "high": 0.65,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 22
+    },
+    {
+      "low": 0.45,
+      "high": 0.7,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 25
+    },
+    {
+      "low": 0.45,
+      "high": 0.75,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 30
+    },
+    {
+      "low": 0.45,
+      "high": 0.8,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 33
+    },
+    {
+      "low": 0.45,
+      "high": 0.85,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 34
+    },
+    {
+      "low": 0.5,
+      "high": 0.55,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 5
+    },
+    {
+      "low": 0.5,
+      "high": 0.6,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 13
+    },
+    {
+      "low": 0.5,
+      "high": 0.65,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 21
+    },
+    {
+      "low": 0.5,
+      "high": 0.7,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 24
+    },
+    {
+      "low": 0.5,
+      "high": 0.75,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 29
+    },
+    {
+      "low": 0.5,
+      "high": 0.8,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 32
+    },
+    {
+      "low": 0.5,
+      "high": 0.85,
+      "f1": 0.957,
+      "precision": 1.0,
+      "recall": 0.917,
+      "escalated": 33
+    }
+  ],
+  "best_band": {
+    "low": 0.35,
+    "high": 0.5,
+    "f1": 0.959,
+    "precision": 0.946,
+    "recall": 0.972,
+    "escalated": 7
+  },
+  "chosen_band": {
+    "low": 0.35,
+    "high": 0.65,
+    "f1": 0.959,
+    "precision": 0.946,
+    "recall": 0.972,
+    "escalated": 28
+  }
+}
