@@ -14,7 +14,12 @@ dependencies = [
     "fsrs>=6.3,<7",
     "python-multipart>=0.0.12",
     "piper-tts>=1.4,<2",
-    "weasyprint>=62",
+    # Pure Python, no compiled extension and no system libraries. Replaces
+    # WeasyPrint, which needs Pango/GLib/cairo installed via the OS package
+    # manager — a dependency this file cannot express, that the README never
+    # mentioned, and that made the certificate silently unavailable on any
+    # machine that had not installed it. `uv sync` is now the whole setup.
+    "fpdf2>=2.7",
 ]
 
 [dependency-groups]

@@ -1,4 +1,5 @@
 import logging
+import re
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
@@ -16,7 +17,7 @@ from app.schemas import (
     LessonDetailResponse,
     ProgressSummary,
 )
-from app.services.certificates import generate_certificate
+from app.services.certificates import DEFAULT_RECIPIENT, generate_certificate
 from app.services.embeddings import index_lesson
 from app.services.events import COURSE_GENERATED, record_event
 from app.services.mastery import course_mastery
@@ -191,18 +192,35 @@ def get_timeline(
     }
 
 
+def _certificate_filename(course_title: str) -> str:
+    """A saved certificate should be recognisable in a downloads folder.
+
+    Restricted to ASCII word characters and hyphens because Content-Disposition
+    is a header: a quote or a newline in a generated course title would
+    otherwise let the title break out of the header value.
+    """
+    slug = re.sub(r"[^A-Za-z0-9]+", "-", course_title).strip("-").lower()
+    return f"certificate-{slug[:60] or 'course'}.pdf"
+
+
 @router.get("/{course_id}/certificate")
 def get_certificate(
     course_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(current_user),
 ):
-    get_owned_course(db, course_id, user.id)
-    pdf_bytes = generate_certificate(course_id, db)
+    course = get_owned_course(db, course_id, user.id)
+    # getattr rather than user.name: the test suite injects a SimpleNamespace
+    # stand-in for the authenticated user, and a missing attribute here would
+    # turn every certificate test into a 500.
+    recipient = (getattr(user, "name", None) or "").strip() or DEFAULT_RECIPIENT
+    pdf_bytes = generate_certificate(course_id, db, recipient=recipient)
+
+    filename = _certificate_filename(course.title)
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="certificate-{course_id}.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
 
 

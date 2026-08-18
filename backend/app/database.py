@@ -183,12 +183,22 @@ def _run_migrations() -> None:
                     course_id TEXT PRIMARY KEY,
                     mastery_snapshot REAL NOT NULL,
                     pdf_path TEXT NOT NULL,
-                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    recipient TEXT
                 )
             """))
             conn.commit()
         except Exception:
             pass
+
+        # certificate_cache predates the recipient column. It is part of the
+        # cache key, so without it someone who sets a display name would keep a
+        # certificate addressed to "The Learner" for as long as mastery held.
+        try:
+            conn.execute(text("ALTER TABLE certificate_cache ADD COLUMN recipient TEXT"))
+            conn.commit()
+        except Exception:
+            pass  # column already exists
 
 
 def create_tables() -> None:

@@ -138,10 +138,36 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!res.ok) {
     const body = await res.json().catch(() => null);
-    throw new Error(body?.detail ?? `Request failed with status ${res.status}`);
+    throw new Error(errorMessage(body, res.status));
   }
 
   return res.json() as Promise<T>;
+}
+
+/**
+ * FastAPI's `detail` is a string for a raised HTTPException but an ARRAY of
+ * per-field objects for a 422 validation error. Reading it as a string turned
+ * every validation failure into "[object Object]" in the error banner.
+ */
+export function errorMessage(body: unknown, status: number): string {
+  const detail = (body as { detail?: unknown } | null)?.detail;
+
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        const entry = item as { msg?: unknown; loc?: unknown };
+        const field = Array.isArray(entry.loc) ? entry.loc[entry.loc.length - 1] : undefined;
+        const msg = typeof entry.msg === "string" ? entry.msg : null;
+        if (!msg) return null;
+        return field ? `${String(field)}: ${msg}` : msg;
+      })
+      .filter((m): m is string => m !== null);
+    if (messages.length > 0) return messages.join("; ");
+  }
+
+  return `Request failed with status ${status}`;
 }
 
 export function createCourse(body: CourseRequest): Promise<CourseResponse> {

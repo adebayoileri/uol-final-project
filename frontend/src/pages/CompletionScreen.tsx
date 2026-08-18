@@ -40,6 +40,13 @@ import { listContainer, listItem, springMomentum, springSheet } from '../motion/
 
 const MASTERY_PREVIEW = 6
 
+/** Prefer the server's filename, which names the course rather than its id. */
+function filenameFrom(res: Response): string | null {
+  const header = res.headers.get('content-disposition')
+  const match = header?.match(/filename="([^"]+)"/)
+  return match?.[1] ?? null
+}
+
 export default function CompletionScreen() {
   const { courseId } = useParams<{ courseId: string }>()
   const toast = useToast()
@@ -88,9 +95,18 @@ export default function CompletionScreen() {
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = `certificate-${courseId}.pdf`
+      a.download = filenameFrom(res) ?? `certificate-${courseId}.pdf`
+
+      // The anchor must be in the document and the blob URL must outlive the
+      // click. Firefox ignores a click on a detached anchor, and Safari aborts
+      // a download whose object URL is revoked in the same tick — both of
+      // which produce no file while the success toast still fires, so the
+      // failure looks like nothing happened at all.
+      document.body.appendChild(a)
       a.click()
-      URL.revokeObjectURL(url)
+      document.body.removeChild(a)
+      window.setTimeout(() => URL.revokeObjectURL(url), 10_000)
+
       toast({ title: 'Certificate downloaded', tone: 'success' })
     } catch (err) {
       // Reported as a toast, never through the state that gates the render —
