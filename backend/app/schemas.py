@@ -7,7 +7,35 @@ from pydantic import BaseModel, ConfigDict, Field
 class CourseRequest(BaseModel):
     goal: str = Field(..., min_length=10, max_length=1000)
     duration: Literal["short_term", "long_term"]
+    #: A value from `GET /courses/categories`, the sentinel "auto" to have one
+    #: chosen from the goal, or anything else the learner typed under "Other".
     category: str = Field(..., min_length=2, max_length=100)
+
+
+class CategoryOption(BaseModel):
+    """One entry in the category vocabulary, as the form needs to render it."""
+
+    value: str
+    label: str
+    group: str
+    note: str = ""
+
+
+class CategorySuggestionRequest(BaseModel):
+    #: Lower than `CourseRequest.goal`'s 10 because this endpoint is called while
+    #: the learner is still typing; it is a preview, not a submission.
+    goal: str = Field(..., min_length=3, max_length=1000)
+
+
+class CategorySuggestionResponse(BaseModel):
+    value: str
+    label: str
+    group: str
+    note: str = ""
+    #: "model" when the LLM chose, "keyword" when it was unavailable or invented
+    #: an answer and the deterministic matcher took over, "default" when nothing
+    #: matched. The form uses this to decide how loudly to present the result.
+    source: Literal["model", "keyword", "default"]
 
 
 class ObjectiveResponse(BaseModel):
@@ -197,6 +225,18 @@ class LessonDiagramResponse(BaseModel):
     # Validated on the way in by app.diagram_spec; passed through as plain
     # dicts on the way out so a new diagram kind needs no change here.
     diagrams: list[dict]
+
+
+class LessonClueResponse(BaseModel):
+    """Response for the listening-clue generation endpoint.
+
+    Deliberately carries no clue text. The clue is the audio question, so a
+    client that could read it would not have to listen — the same reason
+    `build_listen` never sends the spoken string. The only caller that needs the
+    text is the drill endpoint, which synthesises it server-side.
+    """
+
+    status: Literal["cached", "generated"]
 
 
 class LessonDetailResponse(BaseModel):

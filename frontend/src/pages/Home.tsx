@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { motion } from 'motion/react'
 import { ArrowRight, BookOpen, Flame, Sparkles, Wand2 } from 'lucide-react'
-import { createCourse, getCourses, type CourseRequest, type CourseSummaryResponse } from '../api'
+import { createCourse, getCategories, getCourses, suggestCategory, type CategoryOption, type CategorySuggestion, type CourseRequest, type CourseSummaryResponse } from '../api'
 import {
   Button,
   ButtonLink,
@@ -12,6 +12,7 @@ import {
   Input,
   ProgressBar,
   Segmented,
+  Select,
   Skeleton,
   Textarea,
 } from '../components/ui'
@@ -36,22 +37,138 @@ const HOW_IT_WORKS = [
   { icon: Flame, title: 'Keep it', body: 'FSRS schedules reviews before you forget.' },
 ]
 
+/**
+ * Category selects a value the generator branches on, so it is a fixed list
+ * rather than a text box: "Programming" and "Python" read the same to a person
+ * and mean different things to the question generator. The list is fetched from
+ * the server, which is also what validates it, so the two cannot disagree.
+ */
+const AUTO_MODE = 'auto'
+const OTHER_MODE = 'other'
+const MIN_GOAL_FOR_DETECTION = 10
+const DETECT_DEBOUNCE_MS = 600
+
+/** Group options for `<optgroup>`, preserving the order the server sent. */
+function groupCategories(options: CategoryOption[]): Array<[string, CategoryOption[]]> {
+  const groups = new Map<string, CategoryOption[]>()
+  for (const option of options) {
+    const bucket = groups.get(option.group)
+    if (bucket) bucket.push(option)
+    else groups.set(option.group, [option])
+  }
+  return [...groups.entries()]
+}
+
 export default function Home() {
   const navigate = useNavigate()
   const [courses, setCourses] = useState<CourseSummaryResponse[] | null>(null)
   const [goal, setGoal] = useState('')
   const [duration, setDuration] = useState<CourseRequest['duration']>('short_term')
-  const [category, setCategory] = useState('')
   const [loading, setLoading] = useState(false)
   const [stage, setStage] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const stageTimer = useRef<number | null>(null)
+
+  // Category state. `categoryMode` is what the learner picked; `customCategory`
+  // only matters under "Other".
+  const [categoryMode, setCategoryMode] = useState<string>(AUTO_MODE)
+  const [customCategory, setCustomCategory] = useState('')
+  const [categories, setCategories] = useState<CategoryOption[] | null>(null)
+  // A detection, tagged with the goal it was run against. Compare rather than
+  // reset: clearing on every keystroke would flicker, and not clearing at all
+  // would let a stale answer be submitted for a goal it was never about.
+  const [detection, setDetection] = useState<{
+    forGoal: string
+    suggestion: CategorySuggestion | null
+    pending: boolean
+  } | null>(null)
 
   useEffect(() => {
     getCourses()
       .then(setCourses)
       .catch(() => setCourses([]))
   }, [])
+
+  useEffect(() => {
+    getCategories()
+      .then(setCategories)
+      .catch(() => setCategories([]))
+  }, [])
+
+  const goalKey = goal.trim()
+  // The vocabulary failed to load. Fall back to the free-text box it replaced:
+  // an empty dropdown would make the form impossible to submit, which is a
+  // worse outcome than a category the server has to interpret from the goal.
+  const hasPicker = (categories?.length ?? 0) > 0
+  const groupedCategories = groupCategories(categories ?? [])
+  const activeDetection = detection?.forGoal === goalKey ? detection : null
+  const suggestion = activeDetection?.suggestion ?? null
+  const detecting = activeDetection?.pending ?? false
+
+  useEffect(() => {
+    if (!hasPicker || categoryMode !== AUTO_MODE) return
+    if (goalKey.length < MIN_GOAL_FOR_DETECTION) {
+      setDetection(null)
+      return
+    }
+
+    let cancelled = false
+    const controller = new AbortController()
+    setDetection({ forGoal: goalKey, suggestion: null, pending: true })
+
+    const timer = window.setTimeout(() => {
+      suggestCategory(goalKey, controller.signal)
+        .then((result) => {
+          if (cancelled) return
+          setDetection({ forGoal: goalKey, suggestion: result, pending: false })
+        })
+        .catch(() => {
+          // Not an error worth a banner: the server resolves the category
+          // anyway if we submit without one. The hint says so.
+          if (cancelled) return
+          setDetection({ forGoal: goalKey, suggestion: null, pending: false })
+        })
+    }, DETECT_DEBOUNCE_MS)
+
+    return () => {
+      cancelled = true
+      window.clearTimeout(timer)
+      controller.abort()
+    }
+  }, [goalKey, categoryMode, hasPicker])
+
+  /** The category sent to the server. `AUTO` means "you decide". */
+  const submittedCategory = !hasPicker
+    ? customCategory.trim()
+    : categoryMode === AUTO_MODE
+      ? (suggestion?.value ?? AUTO_MODE)
+      : categoryMode === OTHER_MODE
+        ? customCategory.trim()
+        : categoryMode
+
+  const selectedNote = categories?.find((c) => c.value === categoryMode)?.note
+
+  /**
+   * One line under the control, doing three jobs: saying what the field affects,
+   * reporting what Auto decided, and flagging when that decision was a guess.
+   */
+  const categoryHint = (() => {
+    if (!hasPicker) return 'Shapes question style, narration voice and diagrams.'
+    if (categoryMode === AUTO_MODE) {
+      if (detecting) return 'Reading your goal\u2026'
+      if (suggestion) {
+        const lead = suggestion.source === 'model' ? 'Detected' : 'Best guess'
+        return suggestion.note
+          ? `${lead}: ${suggestion.label} \u2014 ${suggestion.note}`
+          : `${lead}: ${suggestion.label}`
+      }
+      return goalKey.length >= MIN_GOAL_FOR_DETECTION
+        ? "Couldn't read a category from that \u2014 we'll match it when you generate."
+        : 'Describe your goal and we\u2019ll choose the category for you.'
+    }
+    if (categoryMode === OTHER_MODE) return 'Kept exactly as you type it.'
+    return selectedNote ?? 'Shapes question style, narration voice and diagrams.'
+  })()
 
   useEffect(() => {
     if (!loading) {
@@ -72,7 +189,7 @@ export default function Home() {
     setLoading(true)
     setError(null)
     try {
-      const course = await createCourse({ goal, duration, category })
+      const course = await createCourse({ goal, duration, category: submittedCategory })
       navigate(`/courses/${course.id}`)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to generate course.')
@@ -135,18 +252,55 @@ export default function Home() {
                 )}
               </Field>
 
-              <Field label="Category" hint="Drives question style — Python courses get fill-in-the-blank code.">
-                {(p) => (
-                  <Input
-                    required
-                    minLength={2}
-                    maxLength={100}
-                    value={category}
-                    onChange={(e) => setCategory(e.target.value)}
-                    placeholder="e.g. Programming, Spanish, Statistics"
-                    {...p}
-                  />
-                )}
+              <Field
+                label="Category"
+                hint={categoryHint}
+                hintLive
+              >
+                {(p) =>
+                  hasPicker ? (
+                    <div className="space-y-2">
+                      <Select
+                        value={categoryMode}
+                        onChange={(e) => setCategoryMode(e.target.value)}
+                        {...p}
+                      >
+                        <option value={AUTO_MODE}>Auto — detect from my goal</option>
+                        {groupedCategories.map(([group, options]) => (
+                          <optgroup key={group} label={group}>
+                            {options.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                        <option value={OTHER_MODE}>Other — type my own</option>
+                      </Select>
+                      {categoryMode === OTHER_MODE && (
+                        <Input
+                          required
+                          minLength={2}
+                          maxLength={100}
+                          aria-label="Your category"
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          placeholder="e.g. Marine Biology"
+                        />
+                      )}
+                    </div>
+                  ) : (
+                    <Input
+                      required
+                      minLength={2}
+                      maxLength={100}
+                      value={customCategory}
+                      onChange={(e) => setCustomCategory(e.target.value)}
+                      placeholder="e.g. Programming, Spanish, Statistics"
+                      {...p}
+                    />
+                  )
+                }
               </Field>
 
               <div className="space-y-1.5">

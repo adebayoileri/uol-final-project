@@ -11,12 +11,16 @@ from app.auth.ownership import get_owned_course, get_owned_lesson
 from app.database import get_db
 from app.models import Course, Lesson, Module, Objective, User
 from app.schemas import (
+    CategoryOption,
+    CategorySuggestionRequest,
+    CategorySuggestionResponse,
     CourseSummaryResponse,
     CourseRequest,
     CourseResponse,
     LessonDetailResponse,
     ProgressSummary,
 )
+from app.services.categorizer import CATEGORIES, resolve_category, suggest_category
 from app.services.certificates import DEFAULT_RECIPIENT, generate_certificate
 from app.services.embeddings import index_lesson
 from app.services.events import COURSE_GENERATED, record_event
@@ -52,6 +56,44 @@ def list_courses(
     return result
 
 
+@router.get("/categories", response_model=list[CategoryOption])
+def list_categories(user: User = Depends(current_user)) -> list[CategoryOption]:
+    """The category vocabulary the form offers.
+
+    Served rather than duplicated in the client so the dropdown, the "Auto"
+    classifier and the value the create endpoint validates against are the same
+    list by construction. Two copies of a taxonomy drift, and the failure is
+    silent — a category the form offers but the resolver does not recognise.
+
+    Declared above `/{course_id}`: FastAPI matches in registration order, and a
+    literal path registered after the parameterised one is unreachable.
+    """
+    return [
+        CategoryOption(value=c.value, label=c.display, group=c.group, note=c.note)
+        for c in CATEGORIES
+    ]
+
+
+@router.post("/category-suggestion", response_model=CategorySuggestionResponse)
+def suggest_course_category(
+    body: CategorySuggestionRequest,
+    user: User = Depends(current_user),
+) -> CategorySuggestionResponse:
+    """Guess a category from a goal, for the form to show before submitting.
+
+    A preview only — the learner can override it, and `create_course` resolves
+    independently so a course can still be generated if this call never lands.
+    """
+    suggestion = suggest_category(body.goal)
+    return CategorySuggestionResponse(
+        value=suggestion.value,
+        label=suggestion.label,
+        group=suggestion.group,
+        note=suggestion.note,
+        source=suggestion.source,
+    )
+
+
 @router.post("", response_model=CourseResponse, status_code=201)
 def create_course(
     body: CourseRequest,
@@ -59,11 +101,12 @@ def create_course(
     user: User = Depends(current_user),
 ) -> CourseResponse:
     """Generate a structured course via Ollama and persist it to SQLite."""
+    category = resolve_category(body.category, body.goal)
     try:
         course_data = generate_course(
             goal=body.goal,
             duration=body.duration,
-            category=body.category,
+            category=category,
         )
     except RuntimeError as exc:
         logger.error("Course generation failed: %s", exc)
@@ -76,7 +119,7 @@ def create_course(
         user_id=user.id,
         goal=body.goal,
         duration=body.duration,
-        category=body.category,
+        category=category,
         title=course_data["title"],
         description=course_data["description"],
     )

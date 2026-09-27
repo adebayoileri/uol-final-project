@@ -18,7 +18,11 @@ if TYPE_CHECKING:
     from app.models import Course
 
 # ISO code → the words a learner is likely to use for that language.
-_LANGUAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
+#
+# Public because `services/categorizer.py` builds its language categories from
+# this table rather than repeating it: a vocabulary that disagrees with the
+# resolver would reintroduce exactly the mismatch this module exists to absorb.
+LANGUAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
     "es": ("spanish", "español", "espanol", "castellano"),
     "fr": ("french", "français", "francais"),
     "de": ("german", "deutsch"),
@@ -31,12 +35,12 @@ _LANGUAGE_KEYWORDS: dict[str, tuple[str, ...]] = {
 # Voices actually installed for Piper (see app/services/tts.py).
 _TTS_VOICES: tuple[str, ...] = ("en", "es")
 
-_PYTHON_KEYWORDS: tuple[str, ...] = ("python", "django", "flask", "pandas", "numpy")
+PYTHON_KEYWORDS: tuple[str, ...] = ("python", "django", "flask", "pandas", "numpy")
 
 # Courses for which a chessboard is a teaching aid rather than a non sequitur.
 # Added after a lesson on the perceptron generated a knight on d4: the board
 # was geometrically valid and completely unrelated to the subject.
-_BOARD_GAME_KEYWORDS: tuple[str, ...] = (
+BOARD_GAME_KEYWORDS: tuple[str, ...] = (
     "chess", "checkers", "draughts", "go board", "shogi", "xiangqi",
     "othello", "reversi",
 )
@@ -79,7 +83,7 @@ def resolve_course_profile(course: "Course") -> CourseProfile:
         text = ""
 
     target_language: str | None = None
-    for code, keywords in _LANGUAGE_KEYWORDS.items():
+    for code, keywords in LANGUAGE_KEYWORDS.items():
         if any(word in text for word in keywords):
             target_language = code
             break
@@ -94,8 +98,8 @@ def resolve_course_profile(course: "Course") -> CourseProfile:
     return CourseProfile(
         target_language=target_language,
         tts_language=tts_language,
-        is_python=any(word in text for word in _PYTHON_KEYWORDS),
-        is_board_game=any(word in text for word in _BOARD_GAME_KEYWORDS),
+        is_python=any(word in text for word in PYTHON_KEYWORDS),
+        is_board_game=any(word in text for word in BOARD_GAME_KEYWORDS),
     )
 
 

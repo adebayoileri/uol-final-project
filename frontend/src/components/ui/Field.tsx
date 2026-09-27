@@ -12,6 +12,12 @@ interface FieldProps {
   label: string
   hint?: string
   error?: string
+  /**
+   * Announce the hint when it changes. Off by default because most hints are
+   * static text, and a live region on static text makes screen readers repeat
+   * themselves. Turn it on for hints that report a result.
+   */
+  hintLive?: boolean
   /** Hide the label visually but keep it for assistive tech. */
   srOnlyLabel?: boolean
   className?: string
@@ -22,7 +28,15 @@ interface FieldProps {
   }) => React.ReactNode
 }
 
-export function Field({ label, hint, error, srOnlyLabel, className, children }: FieldProps) {
+export function Field({
+  label,
+  hint,
+  error,
+  hintLive,
+  srOnlyLabel,
+  className,
+  children,
+}: FieldProps) {
   const id = useId()
   const hintId = hint ? `${id}-hint` : undefined
   const errorId = error ? `${id}-error` : undefined
@@ -43,7 +57,11 @@ export function Field({ label, hint, error, srOnlyLabel, className, children }: 
         </p>
       ) : (
         hint && (
-          <p id={hintId} className="text-caption text-fg-subtle">
+          <p
+            id={hintId}
+            aria-live={hintLive ? 'polite' : undefined}
+            className="text-caption text-fg-subtle"
+          >
             {hint}
           </p>
         )

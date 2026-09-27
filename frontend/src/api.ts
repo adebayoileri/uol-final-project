@@ -6,6 +6,27 @@ export interface CourseRequest {
   category: string;
 }
 
+/**
+ * One entry in the category vocabulary. Fetched rather than hardcoded so the
+ * dropdown, the "Auto" classifier and the value the server stores all come from
+ * one list — two copies of a taxonomy drift silently.
+ */
+export interface CategoryOption {
+  value: string;
+  label: string;
+  group: string;
+  note: string;
+}
+
+export interface CategorySuggestion {
+  value: string;
+  label: string;
+  group: string;
+  note: string;
+  /** "model" is the LLM's answer; "keyword"/"default" mean it fell back. */
+  source: "model" | "keyword" | "default";
+}
+
 export interface ObjectiveResponse {
   id: string;
   order_index: number;
@@ -174,6 +195,25 @@ export function createCourse(body: CourseRequest): Promise<CourseResponse> {
   return request<CourseResponse>("/courses", {
     method: "POST",
     body: JSON.stringify(body),
+  });
+}
+
+export function getCategories(): Promise<CategoryOption[]> {
+  return request<CategoryOption[]>("/courses/categories");
+}
+
+/**
+ * Preview which category a goal belongs to.
+ *
+ * Takes a signal because this fires while the learner types: without one, a
+ * response for an earlier goal can land after a response for a later one and
+ * show a stale answer with no indication it is stale.
+ */
+export function suggestCategory(goal: string, signal?: AbortSignal): Promise<CategorySuggestion> {
+  return request<CategorySuggestion>("/courses/category-suggestion", {
+    method: "POST",
+    body: JSON.stringify({ goal }),
+    signal,
   });
 }
 
@@ -419,6 +459,21 @@ export function enrichLesson(lessonId: string): Promise<LessonEnrichResponse> {
 
 export function generateDiagrams(lessonId: string): Promise<LessonDiagramResponse> {
   return request<LessonDiagramResponse>(`/lessons/${lessonId}/diagram`, { method: "POST" });
+}
+
+/**
+ * Clue generation reports status and nothing else.
+ *
+ * The clue is the listening drill's question, so it is only ever spoken — a
+ * client that could read it would not have to listen, which is the whole point
+ * of the drill. There is deliberately nothing here to fetch.
+ */
+export interface LessonClueResponse {
+  status: "cached" | "generated";
+}
+
+export function generateClues(lessonId: string): Promise<LessonClueResponse> {
+  return request<LessonClueResponse>(`/lessons/${lessonId}/clues`, { method: "POST" });
 }
 
 export function getCourses(): Promise<CourseSummaryResponse[]> {

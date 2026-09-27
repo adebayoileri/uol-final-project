@@ -176,11 +176,22 @@ export default function KitchenSink() {
           <Field label="Goal" hint="What do you want to learn?">
             {(p) => <Textarea rows={3} placeholder="Teach me linear regression…" {...p} />}
           </Field>
-          <Field label="Category">
+          <Field label="Category" hint="Shapes question style, narration voice and diagrams.">
             {(p) => (
               <Select {...p}>
-                <option>Programming</option>
-                <option>Language</option>
+                <option value="auto">Auto — detect from my goal</option>
+                <optgroup label="Technology">
+                  <option value="Python">Python</option>
+                  <option value="Programming">Programming</option>
+                </optgroup>
+                <optgroup label="Languages">
+                  <option value="Spanish">Spanish</option>
+                  <option value="French">French</option>
+                </optgroup>
+                <optgroup label="Skills & Business">
+                  <option value="Cooking">Cooking</option>
+                </optgroup>
+                <option value="other">Other — type my own</option>
               </Select>
             )}
           </Field>

@@ -1,0 +1,20 @@
+Sort a learner's goal into one category.
+
+Goal: {goal}
+
+Categories you may return — copy one of these strings exactly:
+{taxonomy}
+
+How to choose:
+- Pick the category the goal is mostly about, not the field it touches. A goal
+  about "using Python for statistics" is Python if the code is the point and
+  Statistics if the method is.
+- Prefer the most specific category that fits. "Learn Python" is Python, not
+  Programming.
+- Use "General" only when nothing above is a reasonable match.
+
+Output ONLY this JSON structure — no other text:
+
+{{
+  "category": "one category name copied from the list above"
+}}
