@@ -942,3 +942,98 @@ The structural decision is that `RegisterRequest` **subclasses** `Credentials` r
 The recipient is also part of the certificate **cache key**. The cache is keyed on course and only regenerates when mastery moves 5%, so without this someone who set their name after generating would keep a certificate addressed to "The Learner" for as long as their mastery held still.
 
 **Status**: Active.
+
+----
+
+## 2026-09-13 — A listening clue is written for the ear, not the page
+
+**Context**: The reported defect was that the listening drill's audio contained the answer. It did, in almost every item: `build_listen` was the multiple-choice drill with a renamed key — `build_mcq` produced a `prompt` and the listening path moved it to `speak` — so the clip was the concept's stored **definition** read aloud. A definition opens by naming the term it defines, because that is what makes it a definition. Measured over the live database rather than argued: **26 of 27 concepts (96.3%)** had a definition containing their own term, so the drill announced its answer essentially always.
+
+Two further leaks were found in the same field of view. `build_mcq` printed the same definition as a *visible* prompt, so multiple choice was solvable by reading and had the identical defect. And the item id was `listen-<lesson>-<concept name>`, shipped beside an `options` array containing that same string, so the correct index was derivable from the payload by anyone who never played the audio.
+
+**Alternatives considered**:
+- **Reword `lesson_content.txt` so a definition never names its own term** — rejected. The definition serves the reader who is learning, and naming the term is what makes it teach; removing it to make a quiz safer makes the lesson itself worse. It would also have required regenerating every stored lesson body, which churns the prose the report describes and orphans the diagram generated from it.
+- **Rewrite the definition at drill time with a model call** — rejected. `docs/decisions.md` already fixes drills as pure functions of stored content so they start instantly and work with Ollama stopped; a drill-time call would reverse that for one drill.
+- **Mask the term deterministically before synthesis** — rejected as the mechanism, though it would work. "This is when … is memorised" reads badly aloud, cannot rephrase, and produces audio that sounds broken rather than deliberate. A description written to be heard is the better answer, and the masking rule survives anyway as one of the checks below.
+- **Add a clue field to the enrichment prompt** — rejected. `diagram_generator` already records this reasoning for its own fields: enrichment carries scars from Ollama truncating a body mid-`worked_example`, and folding more output into it puts working lesson content at risk to save a call. The specific objection here is sharper — a clue's correctness is **negative**, defined partly by a sentence it must not contain, which is not a property a prompt can promise. It needs a checker and somewhere to retry, which is what a separate call and a separate column provide.
+- **Reuse the stored definition as the clue** — rejected. That is the defect.
+
+**Reason**: A fourth lazy pass, `app/services/clue_generator.py` + `app/prompts/lesson_clues.txt`, writing `lessons.clues_json` and mirroring `diagram_json` in every structural respect: same lazy-and-cached model, same per-lesson lock, same `NULL` on failure so the next open retries, same "the client fires it after `/enrich` resolves" trigger. The clue, not the definition, is what both choice drills now ask with.
+
+Because a prompt is a request and not a guarantee, the invariant is enforced in `app/clue_spec.py`. A clue that names its own term is rejected at generation time, and "names" is deliberately loose about form and strict about identity: case, punctuation, hyphenation, plurals, other inflections, the multi-word acronym, and the term's head noun alone all count. Two of these were added because a test failed rather than because they were anticipated — `over-fitting` tokenises to two words and slipped past the phrase comparison, and the head noun is what catches "Classification Threshold" described as "the threshold".
+
+**No fallback to the definition.** A concept without a clue is not asked about at all, and the drill reports itself unavailable with a reason naming the missing prerequisite. Falling back would restore the defect exactly, and this project has already written the rule that applies: a drill that hands over its answer is worse than no drill, because it occupies the space of one and tests nothing. The availability message distinguishes the two prerequisites — "open a lesson to generate its content" and "the clues have not been generated yet" are different waits.
+
+Item ids are hashed rather than built from the concept name, in both choice drills. Ids only need to be stable and unique; they never needed to be the answer.
+
+**Since the fix is useless on content that predates it** — `clues_json` is written once and `ensure_enriched` short-circuits on stored content — `scripts/backfill_lesson_clues.py` writes the missing clues, touching **only** that column so no body, diagram or narration is regenerated. `eval/j8_clue_leak_rate.py` measures both rates over the live database: the definition leak rate is the size of the defect, the clue leak rate must be zero, and coverage is reported beside them so a leak rate over three clues cannot flatter the result. Measured across all nine lessons and five courses: **definition leak rate 96.3% (26/27) → clue leak rate 0.0% (0/24), clue coverage 88.9% (24/27)**.
+
+**The three concepts that have no clue are a limit, not an oversight.** "Artificial Intelligence", "Machine Learning" and "Formal vs informal" resist description without their own head noun — a faithful account of machine learning says "learns", and the check treats an inflection as naming the term, because to a listener it is. The response is not to weaken the check, since that is what stops the defect returning; it is that these concepts are not askable, and the drill says so. One consequence is visible and worth stating: the listening drill needs three describable concepts to run, and **Spanish for Beginners has only two**, so that course's audio drill is unavailable until another of its lessons is enriched.
+
+**A second dead end had to be avoided in the message.** The first version of the availability reason said "open a lesson to generate them" for every shortfall. That is correct when the clue pass has never run and false when it ran and rejected descriptions — the column is then non-NULL, `ensure_clues` returns the cache, and opening the lesson cannot change anything. The two cases are now distinguished: no clue set yet means open a lesson, a short set means re-run the backfill. The backfill grew the matching capability, regenerating a short set and keeping it **only if it covers more concepts**, so a retry can improve a lesson and never regress one. That recovered four lessons and took coverage from 74.1% to 88.9%.
+
+**Status**: Active.
+
+----
+
+## 2026-09-14 — The report is generated, not hand-maintained
+
+**Context**: The report has a hard total word limit of 10,500 across six chapters with individual caps, and the final artefact is a PDF built from markdown. Both the Contents and the chapter word counts had been maintained by hand, and both had drifted: the contents list was run-on prose with no links, `build-txt.py` had been written expecting a `N. [Title](#anchor)` format the markdown never used, and the table indices disagreed with the body.
+
+**Alternatives considered**:
+- **Keep the counts and contents hand-written** — rejected. A stale count is worse than no count: it tells the marker a number that is not true, in the very place that invites them to check it. The two had already diverged.
+- **Have each builder generate its own contents** — rejected. Four outputs (HTML, txt, Notion HTML, PDF) from one source would need the same logic four times, and they would drift again.
+
+**Reason**: Three scripts in `docs/build/`, run in order by `build-all.py` so the order is not a matter of memory. `wordcount.py` measures each chapter and rewrites the headings as `## 1. Introduction (917/1000 words)`, with a `--check` mode that exits non-zero if the total exceeds 10,500 or any chapter exceeds its own cap — the build fails rather than producing a non-compliant PDF. `toc.py` regenerates the Contents from the headings. Targets are set to sum to 10,400 rather than 10,500, because writing to the exact ceiling leaves nothing for the last round of edits and there is no mechanism to recover.
+
+The counting convention is **prose only**: code listings, tables, figure captions, headings, front matter and references are excluded, and the exclusion is printed under the total on the report's own front matter so the number is auditable rather than asserted.
+
+**Status**: Active.
+
+----
+
+## 2026-09-14 — Two defects in the report artefact itself
+
+**Context**: Auditing the build while adding the word-count gate surfaced two faults that had been shipping in every generated PDF.
+
+**The title had drifted into five hardcoded strings, and they disagreed.** The document `<title>` in `reading-template.html` still said *"Retention by Construction"* — a working title from before the draft — and Chromium takes the PDF's document metadata title from `<title>`. So the submitted artefact carried a title in its own properties that matched nothing on its cover. The report title now lives only in the markdown H1: `build-html.py` already derived the on-page `{{TITLE}}` from it, and the templates take it from there.
+
+**Two anchors were broken.** `build-html.py` assigned `id="toc"` to *every* unnumbered `##` heading, so `## Contents` and `## References` collided, and the sidebar's hardcoded `#c7` reference pointed at an id that never existed. Unnumbered sections now get a slug, unnumbered `###` headings no longer emit `id=""`, and the sidebar is built from the headings actually encountered.
+
+**The general point**: both were invisible from the markdown, and both would have been visible to a marker within seconds of opening the PDF. A build that produces four outputs needs at least one check on the output rather than the source.
+
+**Status**: Active.
+
+----
+
+## 2026-09-14 — A negative result has to survive its own standard
+
+**Context**: The evaluation replays alternative grading thresholds over the same 50 labelled answers the F1 is reported on, and finds that the 0.35 / 0.65 band buys 0.002 F1 over a single threshold for a 56% escalation rate.
+
+**Reason**: That comparison is **in-sample**. The band presented as best was chosen by searching over the same labels used to report the score, so it is the best rule on *this* fixture rather than an estimate of how it would perform on answers it has not seen. The report says so where the result is given, rather than letting a critique of one unvalidated choice stand as if it had been validated itself. A held-out set is what would settle it.
+
+Recorded here because it is the same failure the finding is about, one level up: reasoning correctly about why a decision is sound is not the same as testing it, and that applies to the test as much as to the design.
+
+**Status**: Active.
+
+----
+
+## 2026-09-27 — Category is a closed vocabulary, with a model-backed "Auto"
+
+**Context**: `category` was a free-text box. The same intent arrived as "Programming", "python" or "Coding", and two features silently branch on the string: question style and narration voice. Both had already been bitten — a Python course filed under "Programming" never got fill-in-the-blank code exercises, and a Spanish course filed under "Language" was read by the English voice. The existing fix, `resolve_course_profile`, reads goal, category and title together *because* category alone could not be trusted.
+
+**Alternatives considered**:
+- **Leave it free text and rely on the resolver.** Rejected. The resolver is a tolerance, not a fix: it works by keyword-matching a haystack that still contains an arbitrary string, so "Programming" for a Python course remains a coin flip on whether the goal happens to say "Python".
+- **Hardcode the same list in the React form and in the API.** Rejected. Two copies of a taxonomy drift, and the failure is silent — the form offers a category the server does not recognise, or the classifier returns one the dropdown cannot display. This project has already paid for that once, with a table of contents that two halves of one feature disagreed about for weeks.
+- **A fixed list with no way out.** Rejected. "Marine Biology" is a real goal, and a closed list would file it under "Science" and lose the word the learner chose.
+- **A free-text box that the model then normalises.** Rejected. It keeps the original problem — the learner still has to guess the spelling the system wants — and adds a model call to fix a mistake that a dropdown prevents for free.
+- **Resolve the category only on the server, after the learner submits.** Rejected. The value determines question style and voice; if it is chosen invisibly, the learner cannot tell what they asked for, and "Auto" becomes a machine for producing surprises.
+
+**Reason**: The vocabulary lives in `app/services/categorizer.py` and is served by `GET /courses/categories`; the form renders what the endpoint returns and sends a value from it. That makes the dropdown, the classifier and the server-side validation the same list by construction. Two details carry the weight:
+
+- **The values are chosen to contain the keyword the resolver looks for** — the language entries are *derived from* `course_profile`'s own keyword table rather than restated, so the vocabulary and the resolver cannot drift. Tests assert that every language category resolves to its language, that "Python" enables code questions and "Programming" does not, and that "Chess" enables board diagrams. Choosing from the list therefore cannot reproduce the two bugs above.
+- **"Auto" is a UI mode, not a stored value.** The form asks `POST /courses/category-suggestion` as the learner types and shows the answer under the field, so the decision is visible and correctable — including *why* it matters ("Spanish courses use the Spanish narration voice"). The create endpoint resolves independently if the sentinel arrives, so a course is never lost to a classifier that has not answered yet.
+
+Nothing in the service raises. An unreachable model, a slow one, or one that answers with a category outside the list degrades to a whole-word keyword match and then to "General"; tests cover each. A prompt cannot promise "must not invent a category", so that promise is kept by validating the answer against the list rather than by asking for it politely.
+
+**Status**: Active.
