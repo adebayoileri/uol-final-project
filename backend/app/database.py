@@ -33,6 +33,15 @@ def _run_migrations() -> None:
             # Diagram specs, generated lazily after enrichment. NULL means "not
             # attempted"; '[]' means "attempted, no diagram helps here".
             "ALTER TABLE lessons ADD COLUMN diagram_json TEXT",
+            # Listening clues: descriptions of each key concept that never name
+            # the concept, so the aural drill cannot speak its own answer. Kept
+            # out of content_json so regenerating a clue cannot churn the lesson
+            # body, orphan diagram_json, or invalidate the committed figures.
+            # NULL means "never generated, or the last attempt failed" — unlike
+            # diagram_json there is no cacheable empty state, because every key
+            # concept is describable and a clue set that validates to nothing
+            # raises instead of being stored.
+            "ALTER TABLE lessons ADD COLUMN clues_json TEXT",
             # Ownership. Nullable at the column level because SQLite cannot add
             # a NOT NULL column to a populated table; the ORM declares it
             # non-null, and fresh installs get the real constraint from

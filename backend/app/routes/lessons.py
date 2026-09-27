@@ -10,8 +10,14 @@ from app.auth.deps import current_user
 from app.auth.ownership import get_owned_lesson
 from app.database import get_db
 from app.models import Card as DBCard, Lesson, Module, Question, User
-from app.schemas import LessonDiagramResponse, LessonEnrichResponse, QuestionResponse
+from app.schemas import (
+    LessonClueResponse,
+    LessonDiagramResponse,
+    LessonEnrichResponse,
+    QuestionResponse,
+)
 from app.services.answer_evaluator import embed
+from app.services.clue_generator import clue_lock, ensure_clues
 from app.services.diagram_generator import diagram_lock, ensure_diagrams
 from app.services.embeddings import index_question
 from app.achievements.engine import evaluate_achievements
@@ -174,6 +180,56 @@ def generate_lesson_diagrams(
             detail="Diagrams are temporarily unavailable. Please try again.",
         )
     return LessonDiagramResponse(status="generated", diagrams=diagrams)
+
+
+@router.post("/{lesson_id}/clues", response_model=LessonClueResponse)
+def generate_lesson_clues(
+    lesson_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(current_user),
+):
+    """Generate (or return cached) listening clues for a lesson.
+
+    Requires the lesson to be enriched first, for the same reason /diagram does:
+    a clue describes a key concept, and there is nothing to describe until the
+    concepts exist. The client calls this alongside /diagram, after /enrich
+    succeeds.
+
+    The clues themselves are never returned. They are only ever spoken, by the
+    listening drill, so the response reports status and nothing else.
+    """
+    lesson = get_owned_lesson(
+        db,
+        lesson_id,
+        user.id,
+        selectinload(Lesson.module).selectinload(Module.course),
+    )
+
+    if not lesson.content_json:
+        raise HTTPException(
+            status_code=409,
+            detail="This lesson needs its content generated before its listening clues.",
+        )
+
+    if lesson.clues_json is not None:
+        return LessonClueResponse(status="cached")
+
+    with clue_lock(lesson_id):
+        # Same reason as /enrich and /diagram: a request that blocked here loaded
+        # `lesson` before waiting, so its Session still holds the pre-generation
+        # value. Without expiring it the double-check reads stale and generates
+        # anyway, and the lock would run while protecting nothing.
+        db.expire(lesson, ["clues_json"])
+        if lesson.clues_json is not None:
+            return LessonClueResponse(status="cached")
+        clues = ensure_clues(lesson, db)
+
+    if clues is None:
+        raise HTTPException(
+            status_code=503,
+            detail="Listening clues are temporarily unavailable. Please try again.",
+        )
+    return LessonClueResponse(status="generated")
 
 
 @router.get("/{lesson_id}/questions", response_model=list[QuestionResponse])

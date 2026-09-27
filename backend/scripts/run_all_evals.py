@@ -1,4 +1,4 @@
-"""Runner: executes J4 and J6 automatically (J1 needs Ollama, J3 needs Ollama,
+"""Runner: executes J4, J6 and J8 automatically (J1 needs Ollama, J3 needs Ollama,
 J2/J5 need manual scoring or a running server — those print instructions).
 
 Usage:
@@ -6,7 +6,7 @@ Usage:
     uv run python scripts/run_all_evals.py [--all]
 
 With --all: also runs J1 (Ollama) and J3 (Ollama + embeddings). Without it,
-only J4 (FSRS sim) and J6 (latency) run, which work offline.
+only J4 (FSRS sim), J6 (latency) and J8 (clue leak rate) run, which work offline.
 """
 
 import argparse
@@ -46,6 +46,12 @@ def main():
 
     results["phases"]["J4_fsrs"] = run_phase("J4 — FSRS simulation", j4)
     results["phases"]["J6_latency"] = run_phase("J6 — Latency", j6)
+
+    # Reads the database only, so it belongs with the offline phases rather
+    # than behind --all.
+    from eval.j8_clue_leak_rate import run as j8
+
+    results["phases"]["J8_clue_leak_rate"] = run_phase("J8 — Clue leak rate", j8)
 
     if args.all:
         from eval.j1_content_quality import run as j1

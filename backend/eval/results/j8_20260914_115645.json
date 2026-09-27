@@ -1,0 +1,57 @@
+{
+  "timestamp": "2026-09-14T11:56:45.784535",
+  "lessons": 9,
+  "per_course": {
+    "Python File I/O Basics": {
+      "lessons": 1,
+      "concepts": 3,
+      "clues": 3,
+      "definition_leaks": 2,
+      "clue_leaks": 0
+    },
+    "Spanish for Beginners": {
+      "lessons": 1,
+      "concepts": 3,
+      "clues": 2,
+      "definition_leaks": 3,
+      "clue_leaks": 0
+    },
+    "Machine Learning Concepts": {
+      "lessons": 1,
+      "concepts": 3,
+      "clues": 3,
+      "definition_leaks": 3,
+      "clue_leaks": 0
+    },
+    "Understanding History of AI and ML": {
+      "lessons": 2,
+      "concepts": 6,
+      "clues": 2,
+      "definition_leaks": 6,
+      "clue_leaks": 0
+    },
+    "Learning Chess Fundamentals": {
+      "lessons": 4,
+      "concepts": 12,
+      "clues": 10,
+      "definition_leaks": 12,
+      "clue_leaks": 0
+    }
+  },
+  "aggregate": {
+    "definition_leak_rate": 0.963,
+    "definition_leaks": 26,
+    "clue_leak_rate": 0.0,
+    "clue_leaks": 0,
+    "clue_coverage": 0.741,
+    "concepts": 27,
+    "concepts_with_clues": 20,
+    "courses_missing_clues": [
+      "Learning Chess Fundamentals",
+      "Spanish for Beginners",
+      "Understanding History of AI and ML"
+    ],
+    "clue_chars_mean": 157,
+    "clue_chars_median": 156
+  }
+}

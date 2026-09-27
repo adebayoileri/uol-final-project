@@ -102,6 +102,14 @@ class Lesson(Base):
     # NULL and '[]' mean different things: NULL is "not attempted", '[]' is
     # "attempted, and no diagram helps this lesson" — a cacheable answer.
     diagram_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Listening clues as a JSON object mapping concept name → description, for
+    # the aural drill. Generated lazily after enrichment, on the same model as
+    # diagram_json. It lives in its own column rather than inside content_json
+    # for two reasons: regenerating a clue then cannot churn the lesson body or
+    # orphan the diagram generated from it, and the lesson-detail schema — which
+    # enumerates its fields explicitly — has no path to leak a clue to a client
+    # that could read it instead of listening.
+    clues_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     module: Mapped["Module"] = relationship("Module", back_populates="lessons")
     objectives: Mapped[list["Objective"]] = relationship(
@@ -139,6 +147,33 @@ class Lesson(Base):
         except (TypeError, ValueError):
             return []
         return parsed if isinstance(parsed, list) else []
+
+    @property
+    def clues(self) -> dict[str, str] | None:
+        """Listening clues keyed by casefolded concept name, or None if never attempted.
+
+        Casefolded on the way out because the lookup is by the concept name the
+        drill holds, and the model is free to return "Overfitting" where the
+        lesson says "overfitting". Tolerant of unparseable JSON for the same
+        reason `diagrams` is: a bad row should cost the aural drill, not the
+        lesson page.
+        """
+        if self.clues_json is None:
+            return None
+        try:
+            parsed = json.loads(self.clues_json)
+        except (TypeError, ValueError):
+            return {}
+        if not isinstance(parsed, dict):
+            return {}
+        raw = parsed.get("clues")
+        if not isinstance(raw, dict):
+            return {}
+        return {
+            str(name).casefold(): str(clue)
+            for name, clue in raw.items()
+            if str(name).strip() and str(clue).strip()
+        }
 
 
 class Objective(Base):

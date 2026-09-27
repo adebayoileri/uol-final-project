@@ -1,0 +1,55 @@
+Write one spoken clue for each key concept in this lesson.
+
+Course goal: {course_goal}
+Category: {course_category}
+Lesson title: {lesson_title}
+Lesson summary: {lesson_description}
+
+The concepts, with the definition a reader sees:
+
+{concepts_block}
+
+A clue is what a learner HEARS in a listening drill, before choosing which concept it describes. The audio is the question. If the clue contains the concept's name, the drill is worthless — it just announces the answer and tests nothing.
+
+Write each clue so it can only be matched by understanding, never by word-spotting.
+
+For each concept:
+
+1. NEVER use the concept's own term. That includes:
+   - any capitalisation or punctuation of it — "over-fitting" and "Over Fitting" are the same leak as "Overfitting";
+   - plurals and other forms of it — "overfitted" and "overfitting" name the term just as plainly;
+   - its acronym or abbreviation, if it has one;
+   - a word that merely contains the term, such as "overfittingly";
+   - THE KEY WORD OF A MULTI-WORD TERM. This is the rule most often broken. If the term is "Activation Function", you must not write "function"; if it is "Machine Learning", you must not write "learning" or "learn"; if it is "Confusion Matrix", you must not write "matrix". A clue that says "a mathematical function that..." has given away half the answer. Describe the job it does instead: "a rule that decides what a neuron outputs, given the total of its weighted inputs".
+2. Do NOT name the other concepts in this lesson either. A clue that mentions a second term is ambiguous, and the learner sees both in the options.
+3. Describe the mechanism, the situation it applies to, and what happens as a result — the same way you would explain it to someone who does not yet know the word for it. Say what it does, not what it is called.
+4. Make exactly one of the options fit. If your clue would also describe a neighbouring concept, add the distinguishing detail that rules the others out.
+5. Write it to be heard, not read:
+   - one or two sentences, roughly 15 to 40 words;
+   - plain spoken prose, as a person would say it aloud;
+   - no markdown, no bullet characters, no code, no parentheses;
+   - no symbols or notation — write "greater than zero point five", never "> 0.5";
+   - no abbreviations that are read badly aloud;
+   - no reference to "this lesson", "as we covered", or "the previous section" — the listener has only your sentence.
+6. Do not phrase it as a question. The drill asks "Which concept was described?" after the clip; a question inside the clue competes with that.
+7. Do not mention the options, the quiz, or the fact that this is a clue.
+
+The clue should be specific enough that a learner who knows the material can answer confidently, and vivid enough that one who does not learns something from hearing it.
+
+Rules:
+- Every concept in the list above must have exactly one clue.
+- Use "name" copied EXACTLY as written in the list above.
+- Everything must be factually correct and about {lesson_title} specifically.
+
+Output ONLY this JSON object — no other text:
+
+{{
+  "clues": [
+    {{
+      "name": "The concept's name, copied exactly",
+      "clue": "One or two spoken sentences that describe it without ever naming it."
+    }}
+  ]
+}}
+
+Remember: output ONLY the JSON object. No markdown. No prose outside the JSON. Never write a concept's own term in its clue.

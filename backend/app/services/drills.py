@@ -1,9 +1,15 @@
 """Practice drills derived from enriched lesson content.
 
-Every drill here is built deterministically from `lessons.content_json` — the
-key concepts, worked example and examples produced by the enrichment pass. No
-LLM call happens when a learner starts a drill, so they are instant, work
-offline, and produce the same items for the same content.
+Every drill here is built deterministically from stored content — the key
+concepts, worked example and examples in `lessons.content_json`, plus the
+listening clues in `lessons.clues_json`. No LLM call happens when a learner
+starts a drill, so they are instant, work offline, and produce the same items
+for the same content.
+
+The two drills that ask the learner to *identify* a concept — MCQ and listen —
+are asked with a clue rather than with the stored definition. A definition names
+its own term, because that is what makes it teach; asking a question with it
+prints the answer in the question. See `app.clue_spec.py`.
 
 The drill set covers the VARK modalities that the read-and-type review loop
 does not: MCQ (read/write), match (visual), order (kinesthetic), listen and
@@ -30,7 +36,7 @@ DRILL_META: dict[DrillKind, dict[str, str]] = {
     "mcq": {
         "title": "Multiple choice",
         "modality": "Read/write",
-        "description": "Read a definition, pick the concept it describes.",
+        "description": "Read a description, pick the concept it describes.",
     },
     "match": {
         "title": "Concept match",
@@ -45,7 +51,7 @@ DRILL_META: dict[DrillKind, dict[str, str]] = {
     "listen": {
         "title": "Listening",
         "modality": "Aural",
-        "description": "Hear a definition read aloud, pick the concept.",
+        "description": "Hear a description read aloud, pick the concept.",
     },
     "pronounce": {
         "title": "Pronunciation",
@@ -70,6 +76,11 @@ class Concept:
     example: str
     lesson_id: str
     lesson_title: str
+    # The spoken/read description, from the clue pass. Empty when that pass has
+    # not run for this lesson. `definition` is never used as a question text —
+    # it names its own term, which is what makes it a good definition and a
+    # useless prompt — so a concept without a clue simply cannot be asked about.
+    clue: str = ""
 
 
 def _stable_rng(seed_material: str) -> random.Random:
@@ -98,6 +109,9 @@ def collect_concepts(lessons: list[Lesson]) -> list[Concept]:
     out: list[Concept] = []
     for lesson in lessons:
         parsed = parse_lesson_body(lesson.content_json or "")
+        # Casefolded lookup, because the drill holds the name as the lesson
+        # spells it and the clue pass is free to return a different casing.
+        clues = lesson.clues or {}
         for concept in parsed["key_concepts"]:
             name = concept.get("name", "").strip()
             definition = concept.get("definition", "").strip()
@@ -111,6 +125,7 @@ def collect_concepts(lessons: list[Lesson]) -> list[Concept]:
                     example=concept.get("example", "").strip(),
                     lesson_id=lesson.id,
                     lesson_title=lesson.title,
+                    clue=clues.get(name.casefold(), ""),
                 )
             )
     return out
@@ -209,6 +224,26 @@ def drill_availability(course: Course, lessons: list[Lesson]) -> dict[str, Any]:
         if enriched == 0
         else f"Needs more content — only {enriched} of {total} lessons generated so far"
     )
+    # The choice drills ask which concept a description refers to, so they need
+    # a clue per answer, and the clue pass is a separate call from enrichment.
+    #
+    # Two distinct shortfalls, and telling them apart is the difference between
+    # advice that works and advice that cannot. A lesson the clue pass has never
+    # run for is fixed by opening it. A lesson whose clue pass *ran* but had
+    # some descriptions rejected is cached, so `ensure_clues` will never retry
+    # it — sending the learner to open the lesson again would be an instruction
+    # that provably cannot change anything.
+    no_clue_reason = (
+        "Concept clues have not been generated yet — open a lesson to generate them"
+    )
+    pending_clue_lessons = [
+        lesson for lesson in lessons if lesson.content_json and lesson.clues_json is None
+    ]
+    thin_clue_reason = (
+        f"Only {len(_describable(concepts))} of {len(concepts)} concepts could be described "
+        "without naming themselves — add more lesson content, or re-run "
+        "scripts/backfill_lesson_clues.py"
+    )
 
     def entry(kind: DrillKind, available: bool, count: int, reason: str | None):
         return {
@@ -221,7 +256,16 @@ def drill_availability(course: Course, lessons: list[Lesson]) -> dict[str, Any]:
             "reason": reason,
         }
 
+    def choice_reason(available: bool) -> str | None:
+        if available:
+            return None
+        if len(concepts) < MIN_MCQ_CONCEPTS:
+            return not_enriched_reason
+        return no_clue_reason if pending_clue_lessons else thin_clue_reason
+
     pronounceable = [c for c in concepts if c.example or c.name]
+    describable = _describable(concepts)
+    can_ask = len(describable) >= MIN_MCQ_CONCEPTS
 
     return {
         "course_id": course.id,
@@ -230,12 +274,7 @@ def drill_availability(course: Course, lessons: list[Lesson]) -> dict[str, Any]:
         "total_lessons": total,
         "target_language": profile.target_language,
         "drills": [
-            entry(
-                "mcq",
-                len(concepts) >= MIN_MCQ_CONCEPTS,
-                len(concepts),
-                None if len(concepts) >= MIN_MCQ_CONCEPTS else not_enriched_reason,
-            ),
+            entry("mcq", can_ask, len(describable), choice_reason(can_ask)),
             entry(
                 "match",
                 len(concepts) >= MIN_MATCH_CONCEPTS,
@@ -256,9 +295,9 @@ def drill_availability(course: Course, lessons: list[Lesson]) -> dict[str, Any]:
             ),
             entry(
                 "listen",
-                len(concepts) >= MIN_MCQ_CONCEPTS,
-                len(concepts),
-                None if len(concepts) >= MIN_MCQ_CONCEPTS else not_enriched_reason,
+                can_ask,
+                len(describable),
+                choice_reason(can_ask),
             ),
             entry(
                 "pronounce",
@@ -288,26 +327,84 @@ def _options_for(answer: Concept, pool: list[Concept], rng: random.Random) -> tu
     return options, options.index(answer.name)
 
 
-def build_mcq(concepts: list[Concept], n: int, rng: random.Random) -> list[dict[str, Any]]:
-    pool = _dedupe_concepts(concepts)
-    if len(pool) < MIN_MCQ_CONCEPTS:
-        return []
-    chosen = pool[:]
-    rng.shuffle(chosen)
+def _name_hash(name: str) -> str:
+    """An opaque, stable id fragment for one concept.
+
+    The id used to embed the concept's name, so the listening drill shipped
+    `listen-<lesson>-<answer>` beside an `options` list containing that same
+    string — the correct index was derivable from the payload without playing
+    the audio at all. Hashing keeps ids unique and stable per concept while
+    saying nothing about which option is right.
+    """
+    return hashlib.sha256(name.casefold().encode()).hexdigest()[:8]
+
+
+def _describable(pool: list[Concept]) -> list[Concept]:
+    """The concepts that can actually be asked about.
+
+    Only a clue describes a concept without naming it, so only a clue-bearing
+    concept can be the *answer* of a choice drill. Distractors are drawn from
+    the whole pool regardless — a wrong option needs no description.
+    """
+    return [c for c in pool if c.clue]
+
+
+def _choice_items(
+    pool: list[Concept],
+    answers: list[Concept],
+    n: int,
+    rng: random.Random,
+    prefix: str,
+    field: str,
+    extras: Any = None,
+) -> list[dict[str, Any]]:
+    """The shared shape of the two drills that pick a term from a list.
+
+    Extracted so the listening drill is no longer literally the multiple-choice
+    drill with a renamed key. That reuse is what produced the defect: the audio
+    inherited the `prompt` field, and with it a definition that speaks the
+    answer. The two drills now share the *options* construction, which is
+    genuinely common, and nothing else.
+    """
     items = []
-    for concept in chosen[:n]:
+    for concept in answers[:n]:
         options, answer_index = _options_for(concept, pool, rng)
-        items.append(
-            {
-                "id": f"mcq-{concept.lesson_id}-{concept.name}",
-                "prompt": concept.definition,
-                "options": options,
-                "answer_index": answer_index,
-                "lesson_title": concept.lesson_title,
-                "example": concept.example or None,
-            }
-        )
+        item: dict[str, Any] = {
+            "id": f"{prefix}-{concept.lesson_id}-{_name_hash(concept.name)}",
+            field: concept.clue,
+            "options": options,
+            "answer_index": answer_index,
+            "lesson_title": concept.lesson_title,
+        }
+        if extras is not None:
+            item.update(extras(concept))
+        items.append(item)
     return items
+
+
+def build_mcq(concepts: list[Concept], n: int, rng: random.Random) -> list[dict[str, Any]]:
+    """Read a description, pick the concept it describes.
+
+    Prompts with the clue, not the stored definition. The definition names its
+    own term, so using it meant the answer was printed in the question — the
+    same leak the listening drill had through the audio, and just as fatal to
+    the drill's purpose.
+    """
+    pool = _dedupe_concepts(concepts)
+    asked = _describable(pool)
+    if len(asked) < MIN_MCQ_CONCEPTS:
+        return []
+    chosen = asked[:]
+    rng.shuffle(chosen)
+    return _choice_items(
+        pool,
+        chosen,
+        n,
+        rng,
+        "mcq",
+        "prompt",
+        extras=lambda c: {"example": c.example or None},
+    )
 
 
 def build_match(concepts: list[Concept], n: int, rng: random.Random) -> list[dict[str, Any]]:
@@ -358,17 +455,25 @@ def build_order(step_sets: list[dict[str, Any]], n: int, rng: random.Random) -> 
 
 
 def build_listen(concepts: list[Concept], n: int, rng: random.Random) -> list[dict[str, Any]]:
-    """Same shape as MCQ, but the prompt is spoken rather than shown.
+    """The same question as MCQ, heard rather than read.
 
-    The definition text is deliberately NOT sent to the client — if it were,
-    the learner could read instead of listen and the drill would be pointless.
+    The spoken text is the clue: a description that never names the concept,
+    which is the only kind of text that can be spoken in a drill whose answer is
+    the concept's name. A concept without a clue is not asked about at all —
+    falling back to the definition would put the answer back in the audio, and a
+    drill that hands over its answer is worse than no drill, because it occupies
+    the space of one and tests nothing.
+
+    The text is deliberately NOT sent to the client — if it were, the learner
+    could read instead of listen and the drill would be pointless.
     """
-    items = build_mcq(concepts, n, rng)
-    for item in items:
-        item["id"] = item["id"].replace("mcq-", "listen-", 1)
-        item["speak"] = item.pop("prompt")
-        item["example"] = None
-    return items
+    pool = _dedupe_concepts(concepts)
+    asked = _describable(pool)
+    if len(asked) < MIN_MCQ_CONCEPTS:
+        return []
+    chosen = asked[:]
+    rng.shuffle(chosen)
+    return _choice_items(pool, chosen, n, rng, "listen", "speak")
 
 
 def build_pronounce(concepts: list[Concept], n: int, rng: random.Random) -> list[dict[str, Any]]:

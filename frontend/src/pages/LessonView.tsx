@@ -4,6 +4,7 @@ import { ArrowLeft, Clock, Target } from 'lucide-react'
 import {
   completeLesson,
   enrichLesson,
+  generateClues,
   generateDiagrams,
   generateQuestions,
   getCourse,
@@ -69,6 +70,24 @@ export default function LessonView() {
     }
   }, [lessonId])
 
+  /**
+   * The listening clue pass, mirroring the diagram pass above.
+   *
+   * Also needs the content first, and is also fire-and-forget: the listening
+   * drill reports itself unavailable with a reason while the clues are missing,
+   * so a failure here costs a disabled drill tile, not a broken page. Nothing
+   * comes back to render — the clues are only ever spoken — so there is no
+   * state to keep beyond the request itself.
+   */
+  const runClues = useCallback(async () => {
+    if (!lessonId) return
+    try {
+      await generateClues(lessonId)
+    } catch {
+      // Silence is correct here for the same reason it is for diagrams.
+    }
+  }, [lessonId])
+
   const runEnrich = useCallback(async () => {
     if (!lessonId) return
     setEnrichState('loading')
@@ -76,15 +95,20 @@ export default function LessonView() {
       const res = await enrichLesson(lessonId)
       setContent(res.content)
       setEnrichState(res.content ? 'ready' : 'unavailable')
-      // Chained rather than parallel: the diagram call needs the content this
-      // one just wrote, so firing both at once would guarantee a 409.
-      if (res.content) void runDiagrams()
+      // Chained rather than parallel with enrichment: both of these need the
+      // content this call just wrote, so firing them at once would guarantee a
+      // 409. They are independent of each other, so they go together — Ollama
+      // serialises them, but neither waits on the other to finish first.
+      if (res.content) {
+        void runDiagrams()
+        void runClues()
+      }
     } catch {
       // Deliberately no toast: the page rendered fine and this is a
       // progressive enhancement. The retry lives in the body, in context.
       setEnrichState('unavailable')
     }
-  }, [lessonId, runDiagrams])
+  }, [lessonId, runDiagrams, runClues])
 
   const fetchLesson = useCallback(() => {
     if (!courseId || !lessonId) return Promise.resolve()
